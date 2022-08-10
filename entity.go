@@ -1,6 +1,11 @@
 package main
 
-import "github.com/anaseto/gruid"
+import (
+	"github.com/anaseto/gruid"
+	"github.com/anaseto/gruid/rl"
+)
+
+const maxLOS = 10
 
 // Entity Component System
 type ECS struct {
@@ -45,7 +50,15 @@ type Entity interface {
 	Color() gruid.Color
 }
 
-type Player struct {}
+type Player struct {
+	FOV *rl.FOV // player'S field of view
+}
+
+func NewPlayer() (player *Player) {
+	player = &Player{}
+	player.FOV = rl.NewFOV(gruid.NewRange(-maxLOS, -maxLOS, maxLOS + 1, maxLOS + 1))
+	return 
+}
 
 func (p *Player)Rune() (r rune){
 	r = '@'

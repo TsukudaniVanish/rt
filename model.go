@@ -2,7 +2,10 @@ package main
 
 import (
 	"github.com/anaseto/gruid"
+	"github.com/anaseto/gruid/paths"
 )
+
+const colorFOV gruid.Color = iota + 1
 
 type ActionType string 
 const (
@@ -12,7 +15,7 @@ const (
 
 type Model struct {
 	Grid gruid.Grid
-	Game Game
+	Game *Game
 	Action UIAction
 }
 
@@ -30,13 +33,16 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
 	m.Action = UIAction{}
 	switch msg := msg.(type) {
 	case gruid.MsgInit:
+		m.Game = &Game{}
+
 		// init map
 		size := m.Grid.Size()
 		m.Game.Map = NewMap(size)
 		m.Game.ECS = NewEcs()
 
 		// init player
-		m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(&Player{}, size.Div(2))
+		m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(NewPlayer(), m.Game.Map.RandFloor())
+		m.Game.UpdateFOV()
 	case gruid.MsgKeyDown:
 		m.updateMsgKeyDown(msg)
 	}
@@ -46,22 +52,31 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
 
 func (m *Model)Draw() (grid gruid.Grid) {
 	m.Grid.Fill(gruid.Cell{Rune:' '})
-
+	g := m.Game
 	// draw map 
-	it := m.Game.Map.Grid.Iterator()
+	it := g.Map.Grid.Iterator()
 	for it.Next() {
-		m.Grid.Set(it.P(), gruid.Cell{Rune: m.Game.Map.Rune(it.Cell()),})
+		if !g.Map.Explored[it.P()] {
+			continue
+		}
+
+		c := gruid.Cell{Rune: g.Map.Rune(it.Cell()),}
+		if g.InFOV(it.P()) {
+			c.Style.Bg = colorFOV
+		}
+		m.Grid.Set(it.P(), c)
 	}
 
 	// draw entity 
-	for i, e := range m.Game.ECS.Entities{
-		m.Grid.Set(
-			m.Game.ECS.Positions[i], 
-			gruid.Cell{
-				Rune:e.Rune(),
-				Style: gruid.Style{Fg: e.Color()},
-			},
-		)
+	for i, e := range g.ECS.Entities{
+		p := g.ECS.Positions[i]
+		if !g.Map.Explored[p] || !g.InFOV(p) {
+			continue
+		}
+		c := m.Grid.At(p)
+		c.Rune = e.Rune()
+		c.Style.Fg = e.Color()
+		m.Grid.Set(p, c)
 	}
 	return m.Grid
 }
@@ -87,12 +102,45 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 	switch m.Action.Type{
 	case ActionMovement:
 		np := m.Game.ECS.PlayerPosition().Add(m.Action.Delta)
-		if m.Game.Map.IsWalkable(np){
-			m.Game.ECS.MovePlayer(np)
-		}
-
+		m.Game.MovePlayer(np)
 	case ActionQuit:
 		eff = gruid.End()
 	}
 	return
+}
+
+func (g *Game)MovePlayer (to gruid.Point) {
+	if !g.Map.IsWalkable(to) {
+		return 
+	}
+
+	g.ECS.MovePlayer(to)
+	g.UpdateFOV() // update FOV
+}
+
+func (g *Game)UpdateFOV() {
+	player := g.ECS.Player().(*Player)
+	playerPosition := g.ECS.PlayerPosition()
+
+	// new range for fov
+	rangeFOV := gruid.NewRange(-maxLOS, -maxLOS, maxLOS + 1, maxLOS + 1)
+	player.FOV.SetRange(rangeFOV.Add(playerPosition).Intersect(g.Map.Grid.Range()))
+
+	passible := func (p gruid.Point) bool {
+		return g.Map.IsWalkable(p)
+	}
+
+	for _, p := range player.FOV.SSCVisionMap(playerPosition, maxLOS, passible, false){
+		if paths.DistanceManhattan(p, playerPosition) > maxLOS {
+			continue
+		}
+		if !g.Map.Explored[p] {
+			g.Map.Explored[p] = true
+		}
+	}
+}
+
+func (g *Game) InFOV(p gruid.Point) bool {
+	playerPosition := g.ECS.PlayerPosition()
+	return g.ECS.Player().(*Player).FOV.Visible(p) && paths.DistanceManhattan(playerPosition, p) <= maxLOS
 }

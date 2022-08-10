@@ -46,6 +46,10 @@ func (t *TileDrawer) GetImage(c gruid.Cell) image.Image {
 	// we use some selenized colors
 	fg := image.NewUniform(color.RGBA{0xad, 0xbc, 0xbc, 255})
 	bg := image.NewUniform(color.RGBA{0x18, 0x49, 0x56, 255})
+	switch c.Style.Bg {
+	case colorFOV:
+		bg = image.NewUniform(color.RGBA{0x18, 0x49, 0x56, 255})
+	}
 	
 	return t.drawer.Draw(c.Rune, fg, bg)
 }
