@@ -5,8 +5,9 @@ import (
 	"github.com/anaseto/gruid/rl"
 )
 
-const maxLOS = 10
-
+const (
+	maxLOS = 10
+)
 // Entity Component System
 type ECS struct {
 	Entities []Entity
@@ -35,14 +36,33 @@ func (ecs *ECS)MovePlayer(p gruid.Point) {
 	ecs.MoveEntity(ecs.PlayerID, p)
 }
 
-func (ecs *ECS)Player() (player Entity) {
-	player = ecs.Entities[ecs.PlayerID]
+func (ecs *ECS)Player() (player *Player) {
+	player = ecs.Entities[ecs.PlayerID].(*Player)
 	return
 }
 
 func (ecs *ECS)PlayerPosition() (p gruid.Point){
 	p = ecs.Positions[ecs.PlayerID]
 	return
+}
+
+func (ecs *ECS)EnemyAt(p gruid.Point) (enemy *Enemy){
+	for i, q := range ecs.Positions{
+		if p != q {
+			continue
+		}
+		switch e := ecs.Entities[i].(type){
+		case *Enemy:
+			enemy = e
+			return 
+		}
+	}
+	return
+}
+
+func (ecs *ECS)NoBlockingEnemyAt(p gruid.Point) (noBlockingEnemy bool){
+	noBlockingEnemy = ecs.PlayerPosition() != p && ecs.EnemyAt(p) == nil
+	return 
 }
 
 type Entity interface {
@@ -66,6 +86,21 @@ func (p *Player)Rune() (r rune){
 }
 
 func (p *Player)Color() (color gruid.Color) {
-	color = gruid.ColorDefault
+	color = colorPlayer
 	return 
+}
+
+type Enemy struct {
+	Name string 
+	Char rune 
+}
+
+func (e *Enemy)Rune() (r rune) {
+	r = e.Char
+	return 
+}
+
+func (e *Enemy)Color() (color gruid.Color){
+	color = colorEnemy
+	return
 }

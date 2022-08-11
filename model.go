@@ -2,14 +2,17 @@ package main
 
 import (
 	"github.com/anaseto/gruid"
-	"github.com/anaseto/gruid/paths"
 )
 
-const colorFOV gruid.Color = iota + 1
-
+const (
+	colorFOV gruid.Color = iota + 1
+	colorPlayer 
+	colorEnemy
+)
 type ActionType string 
 const (
-	ActionMovement ActionType = "action movement"
+	NoAction ActionType = "no action"
+	ActionBump ActionType = "action bump"
 	ActionQuit ActionType = "action quit"
 )
 
@@ -19,10 +22,6 @@ type Model struct {
 	Action UIAction
 }
 
-type Game struct {
-	ECS *ECS
-	Map *GameMap
-}
 
 type UIAction struct {
 	Type ActionType
@@ -43,6 +42,9 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
 		// init player
 		m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(NewPlayer(), m.Game.Map.RandFloor())
 		m.Game.UpdateFOV()
+
+		// add enemies 
+		m.Game.SpawnEnemies()
 	case gruid.MsgKeyDown:
 		m.updateMsgKeyDown(msg)
 	}
@@ -85,13 +87,13 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
 	pdelta := gruid.Point{}
 	switch msg.Key {
 	case gruid.KeyArrowLeft, "a":
-		m.Action = UIAction{Type: ActionMovement, Delta: pdelta.Shift(-1, 0)}
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(-1, 0)}
 	case gruid.KeyArrowRight, "d":
-		m.Action = UIAction{Type: ActionMovement, Delta: pdelta.Shift(1, 0)}
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(1, 0)}
 	case gruid.KeyArrowUp, "w":
-		m.Action = UIAction{Type: ActionMovement, Delta: pdelta.Shift(0, -1)}
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, -1)}
 	case gruid.KeyArrowDown, "s":
-		m.Action = UIAction{Type: ActionMovement, Delta: pdelta.Shift(0, 1)}
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, 1)}
 	case gruid.KeyEscape:
 		m.Action = UIAction{Type: ActionQuit}
 	}
@@ -100,47 +102,11 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
 
 func (m *Model)handleAction() (eff gruid.Effect) {
 	switch m.Action.Type{
-	case ActionMovement:
+	case ActionBump:
 		np := m.Game.ECS.PlayerPosition().Add(m.Action.Delta)
-		m.Game.MovePlayer(np)
+		m.Game.Bump(np)
 	case ActionQuit:
 		eff = gruid.End()
 	}
 	return
-}
-
-func (g *Game)MovePlayer (to gruid.Point) {
-	if !g.Map.IsWalkable(to) {
-		return 
-	}
-
-	g.ECS.MovePlayer(to)
-	g.UpdateFOV() // update FOV
-}
-
-func (g *Game)UpdateFOV() {
-	player := g.ECS.Player().(*Player)
-	playerPosition := g.ECS.PlayerPosition()
-
-	// new range for fov
-	rangeFOV := gruid.NewRange(-maxLOS, -maxLOS, maxLOS + 1, maxLOS + 1)
-	player.FOV.SetRange(rangeFOV.Add(playerPosition).Intersect(g.Map.Grid.Range()))
-
-	passible := func (p gruid.Point) bool {
-		return g.Map.IsWalkable(p)
-	}
-
-	for _, p := range player.FOV.SSCVisionMap(playerPosition, maxLOS, passible, false){
-		if paths.DistanceManhattan(p, playerPosition) > maxLOS {
-			continue
-		}
-		if !g.Map.Explored[p] {
-			g.Map.Explored[p] = true
-		}
-	}
-}
-
-func (g *Game) InFOV(p gruid.Point) bool {
-	playerPosition := g.ECS.PlayerPosition()
-	return g.ECS.Player().(*Player).FOV.Visible(p) && paths.DistanceManhattan(playerPosition, p) <= maxLOS
 }

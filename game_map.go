@@ -11,6 +11,7 @@ import (
 const (
 	Wall rl.Cell = iota
 	Floor 
+	minCaveSize = 400
 )
 
 type Path struct {
@@ -65,13 +66,20 @@ func (gmap *GameMap)Generate() {
 		{WCutoff1: 5, WCutoff2: 25, WallsOutOfRange: true}, 
 	}
 
-	mapGen.CellularAutomataCave(Wall, Floor, 0.42, rules)
+	for {
+		mapGen.CellularAutomataCave(Wall, Floor, 0.42, rules)
 
-	freep := gmap.RandFloor() // random floor cell
+		freep := gmap.RandFloor() // random floor cell
 
-	pr := paths.NewPathRange(gmap.Grid.Range())
-	pr.CCMap(&Path{Map: gmap}, freep)
-	mapGen.KeepCC(pr, freep, Wall)
+		pr := paths.NewPathRange(gmap.Grid.Range())
+		pr.CCMap(&Path{Map: gmap}, freep)
+		ntiles := mapGen.KeepCC(pr, freep, Wall)
+
+		if ntiles > minCaveSize { // ensure map size for enemy generation
+			break
+		}
+		
+	}
 }
 
 func (gmap *GameMap)RandFloor() gruid.Point{
