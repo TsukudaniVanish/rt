@@ -12,6 +12,7 @@ type Game struct {
 	ECS *ECS
 	Map *GameMap
     PR *paths.PathRange
+    Logs []*LogEntry
 }
 
 // Bump ... player move or attack
@@ -158,4 +159,21 @@ func (g *Game) AIMove(i int) {
         g.ECS.MoveEntity(i, ai.Path[0])
         ai.Path = ai.Path[1:]
     }
+}
+
+func (g *Game)log(e *LogEntry) {
+    if len(g.Logs) > 0 {
+        if g.Logs[len(g.Logs) -1].Text == e.Text {
+            return 
+        }
+    }
+    g.Logs = append(g.Logs, e)
+}
+
+func (g *Game)Logf(format string, color gruid.Color, a ...interface{}) {
+    e := &LogEntry{
+        Text: fmt.Sprintf(format, a ...),
+        Color: color,
+    }
+    g.log(e)
 }
