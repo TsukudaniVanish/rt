@@ -2,7 +2,8 @@ package main
 
 import (
 	"log"
-
+    "strings"
+    "fmt"
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
 )
@@ -10,21 +11,39 @@ import (
 type Game struct {
 	ECS *ECS
 	Map *GameMap
+    PR *paths.PathRange
 }
 
-
+// Bump ... player move or attack
 func (g *Game)Bump (to gruid.Point) {
 	if !g.Map.IsWalkable(to) {
 		return 
 	}
 
-	if enemy := g.ECS.EnemyAt(to); enemy != nil {
-		log.Printf("You kicked the %s, much to its annoyance!\n", enemy.Name)
+	if i,enemy := g.ECS.EnemyAt(to); enemy != nil {
+		log.Printf("You kicked the %s", g.ECS.Name[i])
+        g.BumpAttack(g.ECS.PlayerID, i)
+        g.EndTurn()
 		return
 	}
 
 	g.ECS.MovePlayer(to)
-	g.UpdateFOV() // update FOV
+    g.EndTurn()
+    return 
+}
+
+func (g *Game) EndTurn() {
+    g.UpdateFOV()
+    for i, e := range g.ECS.Entities{
+        if g.ECS.PlayerDead(){
+            return
+        }
+        switch e.(type) {
+        case *Enemy:
+            g.HandleMonsterTurn(i)
+        }
+    }
+    return 
 }
 
 func (g *Game)UpdateFOV() {
@@ -56,22 +75,46 @@ func (g *Game) InFOV(p gruid.Point) bool {
 
 func (g *Game)SpawnEnemies() {
 	const numberOfEnemies = 6
-
 	for i := 0; i < numberOfEnemies; i++{
 		m := &Enemy{}
 
 		// orc or troll
 		switch {
 		case g.Map.Rand.Intn(100) < 80:
-			m.Name = "orc"
 			m.Char = 'o'
 		default:
-			m.Name = "troll" 
 			m.Char = 'T'
 		}
 		p := g.FreeFloorTile()
-		g.ECS.AddEntity(m, p)
+        i := g.ECS.AddEntity(m, p)
+        switch m.Char {
+            case 'o':
+                g.ECS.Statuses[i] = &Status{
+                    HP: 10, MaxHP: 10, Defence: 0,
+                }
+                g.ECS.Name[i] = "orc"
+            case 'T':
+                g.ECS.Statuses[i] = &Status{
+                    HP: 16, MaxHP: 16, Defence: 1,
+                }
+                g.ECS.Name[i] = "troll"
+
+        }
+        g.ECS.AI[i] = &EnemyAI{}
 	}
+}
+
+func (g *Game) BumpAttack(i, j int) {
+    si := g.ECS.Statuses[i]
+    sj := g.ECS.Statuses[j]
+    damage := si.Power - sj.Defence
+    attackDesc := fmt.Sprintf("%s attacks %s", strings.Title(g.ECS.Name[i]), strings.Title(g.ECS.Name[j]))
+    if damage > 0 {
+        log.Printf("%s\ndamage %d", attackDesc, damage)
+        sj.HP -= damage
+    } else {
+        log.Printf("%s\nbut does no damage", attackDesc)
+    }
 }
 
 func (g *Game)FreeFloorTile() (point gruid.Point) {
@@ -81,4 +124,38 @@ func (g *Game)FreeFloorTile() (point gruid.Point) {
 			return p
 		}
 	}
+}
+
+func (g *Game) HandleMonsterTurn(i int) {
+    if !g.ECS.Alive(i) {
+        return 
+    }
+    p := g.ECS.Positions[i]
+    ai := g.ECS.AI[i]
+    aip := &AIPath{ Game: g}
+    playerPosition := g.ECS.PlayerPosition()
+    if paths.DistanceManhattan(p,playerPosition) == 1 {
+        g.BumpAttack(i, g.ECS.PlayerID)
+        return 
+    }
+    if !g.InFOV(p) {
+        if len(ai.Path) < 1 {
+            ai.Path = g.PR.AstarPath(aip, p, g.Map.RandFloor())
+        }
+        g.AIMove(i)
+        return 
+    }
+    ai.Path = g.PR.AstarPath(aip, p, playerPosition)
+    g.AIMove(i)
+}
+
+func (g *Game) AIMove(i int) {
+    ai := g.ECS.AI[i]
+    if len(ai.Path) > 0 && ai.Path[0] == g.ECS.Positions[i] {
+        ai.Path = ai.Path[1:]
+    }
+    if len(ai.Path) > 0 && g.ECS.NoBlockingEnemyAt(ai.Path[0]){
+        g.ECS.MoveEntity(i, ai.Path[0])
+        ai.Path = ai.Path[1:]
+    }
 }
