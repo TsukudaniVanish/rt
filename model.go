@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
 	"sort"
 	"unicode/utf8"
     "strings"
@@ -196,12 +195,22 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 		m.Game.Bump(np)
 	case ActionWait:
         m.Game.EndTurn()
+    case ActionViewMessage:
+        m.Mode = modeMessageViewer
+        lines := []ui.StyledText{}
+        for _, e := range m.Game.Logs {
+            st := gruid.Style{}
+            st.Fg = e.Color
+            lines = append(lines, ui.NewStyledText(e.String(), st))
+        }
+        m.Viewer.SetLines(lines)
     case ActionQuit:
 		eff = gruid.End()
 	}
     if m.Game.ECS.PlayerDead() {
-        log.Printf("You Died")
-        eff = gruid.End()
+        m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
+        m.Mode = modeEnd
+        return nil 
     }
 	return
 }
@@ -238,8 +247,8 @@ func (m *Model) DrawStatus(gd gruid.Grid) {
     if statusPlayer.HP < statusPlayer.MaxHP / 2 {
         st.Fg = colorStatusWounded
     }
-    m.LogLabel.Content = ui.Textf("HP: %d/%d", statusPlayer.HP, statusPlayer.MaxHP)
-    m.LogLabel.Draw(gd)
+    m.StatusLabel.Content = ui.Textf("HP: %d/%d", statusPlayer.HP, statusPlayer.MaxHP)
+    m.StatusLabel.Draw(gd)
 }
 
 func (m *Model) DrawNames(gd gruid.Grid) {
@@ -247,13 +256,13 @@ func (m *Model) DrawNames(gd gruid.Grid) {
     if !m.MousePos.In(maprg) {
         return 
     }
-    p := m.MousePos.Sub(gruid.Point{0, 2})
+    p := m.MousePos.Sub(gruid.Point{X:0, Y: 2})
     names := []string{}
-    for i, q := range m.Game.ECS.Entities {
+    for i, q := range m.Game.ECS.Positions {
         if q != p || !m.Game.InFOV(q) {
             continue 
         }
-        name, ok := m.Gmae.ECS.Name[i]
+        name, ok := m.Game.ECS.Name[i]
         if ok {
             if m.Game.ECS.Alive(i) {
                 names = append(names, name)
@@ -268,15 +277,14 @@ func (m *Model) DrawNames(gd gruid.Grid) {
     }   
     sort.Strings(names)
 
-
     text := strings.Join(names, ", ")
-    width := utf8.RuneCountInString(text)
+    width := utf8.RuneCountInString(text) + 2
     rg := gruid.NewRange(p.X +1 , p.Y -1, p.X + 1 + width, p.Y + 2)
     // if box is on edge. adjust place of the box
     if p.X + 1 + width >= UIWidth {
         rg = rg.Shift(-1 -width, 0, -1 -width, 0)
     }
-    if p.Y + 2> MapHeight {
+    if p.Y + 2> MapHight {
         rg = rg.Shift(0, -1, 0, -1)
     }
     if p.Y -1 <0 {

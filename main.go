@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	gd := gruid.NewGrid(80, 24)
+	gd := gruid.NewGrid(UIWidth, UIHight)
 	m := &Model{ Grid: gd}
 	// Specify a driver among the provided ones.
 	tile, err := GetTileDrawer()

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"log"
     "strings"
     "fmt"
 	"github.com/anaseto/gruid"
@@ -22,7 +21,6 @@ func (g *Game)Bump (to gruid.Point) {
 	}
 
 	if i,enemy := g.ECS.EnemyAt(to); enemy != nil {
-		log.Printf("You kicked the %s", g.ECS.Name[i])
         g.BumpAttack(g.ECS.PlayerID, i)
         g.EndTurn()
 		return
@@ -91,12 +89,12 @@ func (g *Game)SpawnEnemies() {
         switch m.Char {
             case 'o':
                 g.ECS.Statuses[i] = &Status{
-                    HP: 10, MaxHP: 10, Defence: 0,
+                    HP: 10, MaxHP: 10,Power: 3, Defence: 0,
                 }
                 g.ECS.Name[i] = "orc"
             case 'T':
                 g.ECS.Statuses[i] = &Status{
-                    HP: 16, MaxHP: 16, Defence: 1,
+                    HP: 16, MaxHP: 16,Power: 5, Defence: 1,
                 }
                 g.ECS.Name[i] = "troll"
 
@@ -110,11 +108,15 @@ func (g *Game) BumpAttack(i, j int) {
     sj := g.ECS.Statuses[j]
     damage := si.Power - sj.Defence
     attackDesc := fmt.Sprintf("%s attacks %s", strings.Title(g.ECS.Name[i]), strings.Title(g.ECS.Name[j]))
+    color := colorLogEnemyAttack
+    if i == g.ECS.PlayerID {
+        color = colorLogPlayerAttack
+    }
     if damage > 0 {
-        log.Printf("%s\ndamage %d", attackDesc, damage)
+        g.Logf("%s for %d damage", color, attackDesc, damage)
         sj.HP -= damage
     } else {
-        log.Printf("%s\nbut does no damage", attackDesc)
+        g.Logf("%s\nbut does no damage", color, attackDesc)
     }
 }
 

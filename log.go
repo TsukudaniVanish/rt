@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/anaseto/gruid"
-	"github.com/anaseto/gruid/ui"
 )
 
 type LogEntry struct {

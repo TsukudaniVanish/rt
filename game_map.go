@@ -12,6 +12,8 @@ const (
 	Wall rl.Cell = iota
 	Floor 
 	minCaveSize = 400
+    MapWidth = UIWidth
+    MapHight = UIHight -3
 )
 
 type Path struct {
