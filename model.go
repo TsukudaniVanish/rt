@@ -20,6 +20,7 @@ const (
 	colorFOV gruid.Color = iota + 1
 	colorPlayer 
 	colorEnemy
+    colorConsumable
     colorLogPlayerAttack
     colorLogEnemyAttack
     colorLogSpecial
@@ -30,6 +31,9 @@ type ActionType string
 const (
 	NoAction ActionType = "no action"
 	ActionBump ActionType = "action bump"
+    ActionDrop ActionType = "action drop"
+    ActionInventory ActionType = "action inventory"
+    ActionPickup ActionType = "action pickup"
     ActionWait ActionType = "action wait"
 	ActionQuit ActionType = "action quit"
     ActionViewMessage = "action view message"
@@ -40,6 +44,8 @@ const (
     modeNormal UIMode = iota
     modeEnd 
     modeMessageViewer
+    modeInventoryActivate
+    modeInventoryDrop
 )
 
 type Model struct {
@@ -47,6 +53,7 @@ type Model struct {
 	Game *Game
 	Action UIAction
     Mode UIMode
+    Inventory *ui.Menu
     LogLabel *ui.Label
     StatusLabel *ui.Label
     DescLabel *ui.Label // label for description
@@ -79,6 +86,10 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
             m.Mode = modeNormal
         }
         return nil
+
+    case modeInventoryDrop, modeInventoryActivate:
+        m.updateInventory(msg)
+        return nil
     }
 	switch msg := msg.(type) {
 	case gruid.MsgInit:
@@ -101,12 +112,17 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
         m.Game.ECS.Statuses[m.Game.ECS.PlayerID] = &Status{
             HP: 30, MaxHP: 30, Power: 5, Defence: 2,
         }
+        m.Game.ECS.Styles[m.Game.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
         m.Game.ECS.Name[m.Game.ECS.PlayerID] = playerName
+        m.Game.ECS.Inventories[m.Game.ECS.PlayerID] = &Inventory{}
 
 		m.Game.UpdateFOV()
 
 		// add enemies 
 		m.Game.SpawnEnemies()
+
+        // add Items 
+        m.Game.PlaceItems()
 	case gruid.MsgKeyDown:
 		m.updateMsgKeyDown(msg)
     case gruid.MsgMouse:
@@ -119,14 +135,20 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
 }
 
 func (m *Model)Draw() (grid gruid.Grid) {
-    if m.Mode == modeMessageViewer {
+    mapGrid := m.Grid.Slice(m.Grid.Range().Shift(0, 2, 0, -1))
+    switch m.Mode {
+    case modeMessageViewer:
         m.Grid.Copy(m.Viewer.Draw())
         grid = m.Grid
         return 
+    case modeInventoryDrop, modeInventoryActivate:
+        mapGrid.Copy(m.Inventory.Draw())
+        grid = m.Grid
+        return 
     }
+    
 
 	m.Grid.Fill(gruid.Cell{Rune:' '})
-    mapGrid := m.Grid.Slice(m.Grid.Range().Shift(0, 2, 0, -1))
 	g := m.Game
 	// draw map 
 	it := g.Map.Grid.Iterator()
@@ -158,7 +180,7 @@ func (m *Model)Draw() (grid gruid.Grid) {
 			continue
 		}
 		c := mapGrid.At(p)
-		c.Rune, c.Style.Fg = g.ECS.Style(i)
+		c.Rune, c.Style.Fg = g.ECS.GetStyle(i)
 		mapGrid.Set(p, c)
 	}
     m.DrawNames(mapGrid)
@@ -184,6 +206,12 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
 		m.Action = UIAction{Type: ActionQuit}
     case "m":
         m.Action = UIAction{Type: ActionViewMessage}
+    case "i":
+        m.Action = UIAction{Type: ActionInventory}
+    case "D":
+        m.Action = UIAction{Type: ActionDrop}
+    case "g":
+        m.Action = UIAction{Type: ActionPickup}
 	}
 
 }
@@ -193,6 +221,14 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 	case ActionBump:
 		np := m.Game.ECS.PlayerPosition().Add(m.Action.Delta)
 		m.Game.Bump(np)
+    case ActionDrop:
+        m.OpenInventory("Drop Item")
+        m.Mode = modeInventoryDrop
+    case ActionInventory:
+        m.OpenInventory("Use item")
+        m.Mode = modeInventoryActivate
+    case ActionPickup:
+        m.PickUpItem()
 	case ActionWait:
         m.Game.EndTurn()
     case ActionViewMessage:
@@ -262,7 +298,7 @@ func (m *Model) DrawNames(gd gruid.Grid) {
         if q != p || !m.Game.InFOV(q) {
             continue 
         }
-        name, ok := m.Game.ECS.Name[i]
+        name, ok := m.Game.ECS.GetName(i)
         if ok {
             if m.Game.ECS.Alive(i) {
                 names = append(names, name)
@@ -293,4 +329,70 @@ func (m *Model) DrawNames(gd gruid.Grid) {
     slice := gd.Slice(rg)
     m.DescLabel.Content = ui.Text(text)
     m.DescLabel.Draw(slice)
+}
+
+func (m *Model) PickUpItem() {
+    g := m.Game 
+    pp := g.ECS.PlayerPosition()
+    // search item at pp 
+    for i, p := range g.ECS.Positions{
+        if p != pp {
+            continue
+        }
+        err := g.InventoryAdd(g.ECS.PlayerID, i)
+        if err != nil {
+            if err.Error() == ErrNoShow {
+                continue 
+            }
+            g.Logf("Could not pickup: %v", colorStatusWounded, err)
+            return 
+        }
+        g.Logf("You pickup: %v", colorStatusHealthy, g.ECS.Name[i])
+        g.EndTurn()
+        return 
+    }
+
+}
+
+func (m *Model)OpenInventory(title string) {
+    inv := m.Game.ECS.Inventories[m.Game.ECS.PlayerID]
+    entries := []ui.MenuEntry{}
+    r := 'a'
+    for _, it := range inv.Items {
+        name := m.Game.ECS.Name[it]
+        entries = append(entries, ui.MenuEntry{
+            Text: ui.Text(string(r) + " - " + name),
+            Keys: []gruid.Key{gruid.Key(r)},
+        })
+        r++
+    }
+    m.Inventory = ui.NewMenu(ui.MenuConfig{
+        Grid: gruid.NewGrid(40, MapHight),
+        Box: &ui.Box{Title: ui.Text(title),},
+        Entries: entries,
+    })
+}
+
+func (m *Model) updateInventory(msg gruid.Msg) {
+    m.Inventory.Update(msg)
+    switch m.Inventory.Action(){
+    case ui.MenuQuit:
+        m.Mode = modeNormal
+        return 
+    case ui.MenuInvoke:
+        n := m.Inventory.Active()
+        var err error 
+        switch m.Mode{
+        case modeInventoryDrop:
+            err = m.Game.InventoryRemove(m.Game.ECS.PlayerID, n)
+        case modeInventoryActivate:
+            err = m.Game.InventoryUseItem(m.Game.ECS.PlayerID, n)
+        }
+        if err != nil {
+            m.Game.Logf("%v", colorLogSpecial, err)
+        } else {
+            m.Game.EndTurn()
+        }
+        m.Mode = modeNormal
+    }
 }

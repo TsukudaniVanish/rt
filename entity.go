@@ -12,29 +12,47 @@ const (
 
 // Entity Component System
 type ECS struct {
-	Entities  []Entity
+	Entities  map[int]Entity
 	Positions map[int]gruid.Point // key: index of entity value: position of entity
 	PlayerID  int                 // index of player
+    NextID int 
 
 	Statuses map[int]*Status
 	AI       map[int]*EnemyAI
 	Name     map[int]string
+    Styles map[int]Style
+    Inventories map[int]*Inventory
 }
 
 func NewEcs() *ECS {
 	return &ECS{
+        Entities: map[int]Entity{},
 		Positions: map[int]gruid.Point{},
 		Statuses:  map[int]*Status{-1: nil},
 		AI:        map[int]*EnemyAI{-1: nil},
 		Name:      map[int]string{},
+        Styles: map[int]Style{},
+        Inventories: map[int]*Inventory{},
+        NextID: 0,
 	}
 }
 
 func (ecs *ECS) AddEntity(e Entity, p gruid.Point) (id int) {
-	id = len(ecs.Entities)
-	ecs.Entities = append(ecs.Entities, e)
+	id = ecs.NextID
+    ecs.Entities[id] = e 
 	ecs.Positions[id] = p
-	return
+    ecs.NextID++
+	return 
+}
+
+func (ecs *ECS) RemoveEntity (id int) {
+    delete(ecs.Entities, id)
+    delete(ecs.Positions, id)
+    delete(ecs.Statuses, id)
+    delete(ecs.AI, id)
+    delete(ecs.Name, id)
+    delete(ecs.Styles, id)
+    delete(ecs.Inventories, id)
 }
 
 func (ecs *ECS) MoveEntity(id int, p gruid.Point) {
@@ -95,14 +113,22 @@ func (ecs *ECS) Dead(i int) (isDead bool) {
 	return
 }
 
-func (ecs *ECS) Style(i int) (r rune, c gruid.Color) {
-	r = ecs.Entities[i].Rune()
-	c = ecs.Entities[i].Color()
+func (ecs *ECS) GetStyle(i int) (r rune, c gruid.Color) {
+	r = ecs.Styles[i].Rune
+	c = ecs.Styles[i].Color
 	if ecs.Dead(i) {
 		r = '%'
 		c = gruid.ColorDefault
 	}
 	return
+}
+
+func (ecs *ECS) GetName(i int) (name string) {
+    name = ecs.Name[i]
+    if ecs.Dead(i) {
+        name = "corpse"
+    }
+    return 
 }
 
 // RenderOrder ... Priority of rendaring
@@ -125,14 +151,13 @@ func (ecs *ECS) GetRenderOrder(i int) (ro RenderOrder) {
 		} else {
 			ro = roActor
 		}
+    case Consumable:
+        ro = roItem
 	}
 	return
 }
 
-type Entity interface {
-	Rune() rune
-	Color() gruid.Color
-}
+type Entity interface {}
 
 type Player struct {
 	FOV *rl.FOV // player'S field of view
@@ -144,26 +169,4 @@ func NewPlayer() (player *Player) {
 	return
 }
 
-func (p *Player) Rune() (r rune) {
-	r = '@'
-	return
-}
-
-func (p *Player) Color() (color gruid.Color) {
-	color = colorPlayer
-	return
-}
-
-type Enemy struct {
-	Char rune
-}
-
-func (e *Enemy) Rune() (r rune) {
-	r = e.Char
-	return
-}
-
-func (e *Enemy) Color() (color gruid.Color) {
-	color = colorEnemy
-	return
-}
+type Enemy struct {}

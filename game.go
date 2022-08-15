@@ -1,12 +1,16 @@
 package main
 
 import (
-    "strings"
-    "fmt"
+	"errors"
+	"erros"
+	"fmt"
+	"strings"
+
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
 )
 
+const ErrNoShow = "ErrNoShow"
 type Game struct {
 	ECS *ECS
 	Map *GameMap
@@ -73,30 +77,36 @@ func (g *Game) InFOV(p gruid.Point) bool {
 }
 
 func (g *Game)SpawnEnemies() {
-	const numberOfEnemies = 6
+	const numberOfEnemies = 12
 	for i := 0; i < numberOfEnemies; i++{
 		m := &Enemy{}
+        const (
+            orc = iota
+            troll 
+        )
+        kind := orc
 
 		// orc or troll
 		switch {
 		case g.Map.Rand.Intn(100) < 80:
-			m.Char = 'o'
 		default:
-			m.Char = 'T'
+            kind = troll
 		}
 		p := g.FreeFloorTile()
         i := g.ECS.AddEntity(m, p)
-        switch m.Char {
-            case 'o':
+        switch kind {
+            case orc:
                 g.ECS.Statuses[i] = &Status{
                     HP: 10, MaxHP: 10,Power: 3, Defence: 0,
                 }
                 g.ECS.Name[i] = "orc"
-            case 'T':
+                g.ECS.Styles[i] = Style{Rune: 'o', Color: colorEnemy}
+            case troll:
                 g.ECS.Statuses[i] = &Status{
                     HP: 16, MaxHP: 16,Power: 5, Defence: 1,
                 }
                 g.ECS.Name[i] = "troll"
+                g.ECS.Styles[i] = Style{Rune: 'T', Color: colorEnemy}
 
         }
         g.ECS.AI[i] = &EnemyAI{}
@@ -117,6 +127,16 @@ func (g *Game) BumpAttack(i, j int) {
         sj.HP -= damage
     } else {
         g.Logf("%s\nbut does no damage", color, attackDesc)
+    }
+}
+
+func (g *Game)PlaceItems() {
+    const numberOfPortions = 5
+    const amount = 4
+    for i := 0; i< numberOfPortions; i++{
+        p := g.FreeFloorTile()
+        id := g.ECS.AddEntity(&HealthPotion{Amount: amount}, p)
+        g.ECS.Styles[id] = Style{Rune: '!', Color: colorConsumable}
     }
 }
 
@@ -178,4 +198,42 @@ func (g *Game)Logf(format string, color gruid.Color, a ...interface{}) {
         Color: color,
     }
     g.log(e)
+}
+
+// InventoryAdd ... add an item to actors's inventry 
+func (g *Game) InventoryAdd(actor, i int) (err error) {
+   switch g.ECS.Entities[i].(type) {
+    case Consumable:
+        inv := g.ECS.Inventories[actor]
+        inv.Items = append(inv.Items, i)
+        delete(g.ECS.Positions, i)
+        return
+   }
+   err = errors.New(ErrNoShow)
+   return 
+}
+
+// InventoryRemove ... remove an item at itemID from actor's inventry
+func (g *Game) InventoryRemove(actor, itemID int) (err error) {
+    inv := g.ECS.Inventories[actor]
+    i := inv.Items[itemID]
+    inv.Items = inv.Items[:len(inv.Items) -1]
+    g.ECS.Positions[i] = g.ECS.PlayerPosition()
+    return 
+}
+
+
+// InventoryUseItem ... Use an item at itemID from actor's inventory 
+func (g *Game)InventoryUseItem(actor, itemID int) (err error) {
+    inv := g.ECS.Inventories[actor]
+    i := inv.Items[itemID]
+    switch e := g.ECS.Entities[i].(type) {
+    case Consumable:
+        err = e.Activate(g, ItemAction{Actor: actor,})
+        if err != nil {
+            return
+        }
+    }
+    inv.Items = inv.Items[:len(inv.Items) -1]
+    return 
 }
