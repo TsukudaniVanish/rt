@@ -298,13 +298,9 @@ func (m *Model) DrawNames(gd gruid.Grid) {
         if q != p || !m.Game.InFOV(q) {
             continue 
         }
-        name, ok := m.Game.ECS.GetName(i)
-        if ok {
-            if m.Game.ECS.Alive(i) {
-                names = append(names, name)
-            } else {
-                names = append(names, "corpse")
-            }
+        name := m.Game.ECS.GetName(i)
+        if name != "" {
+            names = append(names, name)
         }
     }
 

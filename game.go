@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"erros"
 	"fmt"
 	"strings"
 
@@ -135,8 +134,10 @@ func (g *Game)PlaceItems() {
     const amount = 4
     for i := 0; i< numberOfPortions; i++{
         p := g.FreeFloorTile()
-        id := g.ECS.AddEntity(&HealthPotion{Amount: amount}, p)
+        name := "portion"
+        id := g.ECS.AddEntity(&HealthPotion{Amount: amount, Name: name}, p)
         g.ECS.Styles[id] = Style{Rune: '!', Color: colorConsumable}
+        g.ECS.Name[id] = name
     }
 }
 
