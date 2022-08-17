@@ -23,6 +23,16 @@ func (st *Status) Heal(n int) (healedHP int) {
     return 
 }
 
+func (st *Status)Damage(n int) (damagedHP int) {
+    st.HP -= n 
+    if st.HP < 0 {
+        n += st.HP
+        st.HP = 0
+    }
+    damagedHP = n 
+    return 
+}
+
 // style contains information relative to default graphical represantation of an entity
 type Style struct {
     Rune rune 
