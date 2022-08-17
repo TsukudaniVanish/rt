@@ -6,9 +6,6 @@ import (
 )
 
 
-
-
-
 type AIPath struct {
     Game *Game 
     NB paths.Neighbors

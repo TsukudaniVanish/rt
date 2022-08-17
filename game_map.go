@@ -13,7 +13,7 @@ const (
 	Floor 
 	minCaveSize = 400
     MapWidth = UIWidth
-    MapHight = UIHight -3
+    MapHight = UIHight - 7
 )
 
 type Path struct {
@@ -46,7 +46,7 @@ func NewMap(size gruid.Point) (gmap *GameMap) {
 }
 
 func (gmap *GameMap)IsWalkable(p gruid.Point) (isWalkable bool) {
-	isWalkable = gmap.Grid.At(p) == Floor
+	isWalkable = gmap.Grid.At(p) == Floor && gmap.Grid.Contains(p)
 	return 
 }
 

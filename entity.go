@@ -131,7 +131,7 @@ func (ecs *ECS) GetName(i int) (name string) {
     return 
 }
 
-// RenderOrder ... Priority of rendaring
+// RenderOrder ... Priority of rendering
 type RenderOrder int
 
 const (

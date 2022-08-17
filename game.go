@@ -9,7 +9,10 @@ import (
 	"github.com/anaseto/gruid/paths"
 )
 
-const ErrNoShow = "ErrNoShow"
+const (
+    ErrNoShow = "ErrNoShow"
+    HealRate = 50
+)
 type Game struct {
 	ECS *ECS
 	Map *GameMap
@@ -31,7 +34,6 @@ func (g *Game)Bump (to gruid.Point) {
 
 	g.ECS.MovePlayer(to)
     g.EndTurn()
-    return 
 }
 
 func (g *Game) EndTurn() {
@@ -43,9 +45,13 @@ func (g *Game) EndTurn() {
         switch e.(type) {
         case *Enemy:
             g.HandleMonsterTurn(i)
+        case *Player:
+            isHeal := g.Map.Rand.Intn(100) > HealRate
+            if isHeal {
+                g.ECS.Statuses[i].Heal(2)
+            }
         }
     }
-    return 
 }
 
 func (g *Game)UpdateFOV() {
@@ -131,7 +137,7 @@ func (g *Game) BumpAttack(i, j int) {
 
 func (g *Game)PlaceItems() {
     const numberOfPortions = 5
-    const amount = 4
+    const amount = 100
     for i := 0; i< numberOfPortions; i++{
         p := g.FreeFloorTile()
         name := "portion"
@@ -234,6 +240,7 @@ func (g *Game)InventoryUseItem(actor, itemID int) (err error) {
         if err != nil {
             return
         }
+        g.Logf("You used portion", colorStatusHealthy)
     }
     inv.Items = inv.Items[:len(inv.Items) -1]
     return 

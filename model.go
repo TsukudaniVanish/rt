@@ -36,7 +36,7 @@ const (
     ActionPickup ActionType = "action pickup"
     ActionWait ActionType = "action wait"
 	ActionQuit ActionType = "action quit"
-    ActionViewMessage = "action view message"
+    ActionViewMessage ActionType = "action view message"
 )
 
 type UIMode int 
@@ -90,52 +90,52 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
     case modeInventoryDrop, modeInventoryActivate:
         m.updateInventory(msg)
         return nil
+    default: // modeNormal
+        switch msg := msg.(type) {
+        case gruid.MsgInit:
+            m.LogLabel = &ui.Label{}
+            m.StatusLabel = &ui.Label{}
+            m.DescLabel = &ui.Label{Box: &ui.Box{}}
+            m.InitializeMessageViewer()
+
+            m.Game = &Game{}
+
+            // init map
+            size := gruid.Point{X: MapWidth,Y: MapHight} 
+            m.Game.Map = NewMap(size)
+            m.Game.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
+            m.Game.ECS = NewEcs()
+
+            // init player
+            m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(NewPlayer(), m.Game.Map.RandFloor())
+            m.Game.ECS.Statuses[m.Game.ECS.PlayerID] = &Status{
+                HP: 30, MaxHP: 30, Power: 5, Defence: 2,
+            }
+            m.Game.ECS.Styles[m.Game.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
+            m.Game.ECS.Name[m.Game.ECS.PlayerID] = playerName
+            m.Game.ECS.Inventories[m.Game.ECS.PlayerID] = &Inventory{}
+
+            m.Game.UpdateFOV()
+
+            // add enemies 
+            m.Game.SpawnEnemies()
+
+            // add Items 
+            m.Game.PlaceItems()
+        case gruid.MsgKeyDown:
+            m.updateMsgKeyDown(msg)
+        case gruid.MsgMouse:
+            if msg.Action == gruid.MouseMove {
+                m.MousePos = msg.P
+            }
+        }
+        eff =  m.handleAction()   
+        return
     }
-	switch msg := msg.(type) {
-	case gruid.MsgInit:
-        m.LogLabel = &ui.Label{}
-        m.StatusLabel = &ui.Label{}
-        m.DescLabel = &ui.Label{Box: &ui.Box{}}
-        m.InitializeMessageViewer()
-
-		m.Game = &Game{}
-
-		// init map
-		size := m.Grid.Size()
-        size.Y -= 3 // for log and status
-		m.Game.Map = NewMap(size)
-        m.Game.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
-		m.Game.ECS = NewEcs()
-
-		// init player
-		m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(NewPlayer(), m.Game.Map.RandFloor())
-        m.Game.ECS.Statuses[m.Game.ECS.PlayerID] = &Status{
-            HP: 30, MaxHP: 30, Power: 5, Defence: 2,
-        }
-        m.Game.ECS.Styles[m.Game.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
-        m.Game.ECS.Name[m.Game.ECS.PlayerID] = playerName
-        m.Game.ECS.Inventories[m.Game.ECS.PlayerID] = &Inventory{}
-
-		m.Game.UpdateFOV()
-
-		// add enemies 
-		m.Game.SpawnEnemies()
-
-        // add Items 
-        m.Game.PlaceItems()
-	case gruid.MsgKeyDown:
-		m.updateMsgKeyDown(msg)
-    case gruid.MsgMouse:
-        if msg.Action == gruid.MouseMove {
-            m.MousePos = msg.P
-        }
-	}
-	eff =  m.handleAction()
-	return 
 }
 
 func (m *Model)Draw() (grid gruid.Grid) {
-    mapGrid := m.Grid.Slice(m.Grid.Range().Shift(0, 2, 0, -1))
+    mapGrid := m.Grid.Slice(m.Grid.Range().Shift(0, 2, 0, -5))
     switch m.Mode {
     case modeMessageViewer:
         m.Grid.Copy(m.Viewer.Draw())
@@ -147,7 +147,7 @@ func (m *Model)Draw() (grid gruid.Grid) {
         return 
     }
     
-
+    // init grid
 	m.Grid.Fill(gruid.Cell{Rune:' '})
 	g := m.Game
 	// draw map 
@@ -183,10 +183,14 @@ func (m *Model)Draw() (grid gruid.Grid) {
 		c.Rune, c.Style.Fg = g.ECS.GetStyle(i)
 		mapGrid.Set(p, c)
 	}
+
     m.DrawNames(mapGrid)
+
+    // draw ui's
     m.DrawLog(m.Grid.Slice(m.Grid.Range().Lines(0, 2)))
-    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Line(m.Grid.Size().Y - 1)))
-	return m.Grid
+    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Lines(m.Grid.Size().Y -4, m.Grid.Size().Y -1)))
+    grid = m.Grid 
+	return
 }
 
 func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
@@ -284,6 +288,7 @@ func (m *Model) DrawStatus(gd gruid.Grid) {
         st.Fg = colorStatusWounded
     }
     m.StatusLabel.Content = ui.Textf("HP: %d/%d", statusPlayer.HP, statusPlayer.MaxHP)
+    m.StatusLabel.Box = &ui.Box{Title: ui.Text("Status")}
     m.StatusLabel.Draw(gd)
 }
 

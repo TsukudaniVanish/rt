@@ -32,7 +32,7 @@ func (p *HealthPotion) Activate(g *Game, a ItemAction) (err error) {
     }
     hp := si.Heal(p.Amount)
     if hp <= 0 {
-        err = errors.New("Your health is already full")
+        err = errors.New("your health is already full")
         return
     }
    return
