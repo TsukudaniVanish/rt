@@ -13,7 +13,7 @@ const (
 // Entity Component System
 type ECS struct {
 	Entities  map[int]Entity
-	Positions map[int]gruid.Point // key: index of entity value: position of entity
+	Positions map[int]gruid.Point // key: index of entity value: position of entity in map
 	PlayerID  int                 // index of player
     NextID int 
 

@@ -11,6 +11,7 @@ import (
 
 const (
     ErrNoShow = "ErrNoShow"
+    ErrNoTargeting = "error no targeting"
     HealRate = 50
 )
 type Game struct {
@@ -139,11 +140,26 @@ func (g *Game)PlaceItems() {
     const numberOfPortions = 5
     const amount = 100
     for i := 0; i< numberOfPortions; i++{
+        r := g.Map.Rand.Float64()
         p := g.FreeFloorTile()
-        name := "portion"
-        id := g.ECS.AddEntity(&HealthPotion{Amount: amount, Name: name}, p)
-        g.ECS.Styles[id] = Style{Rune: '!', Color: colorConsumable}
-        g.ECS.Name[id] = name
+
+        switch {
+        case r < 0.7: // portion
+            name := "portion"
+            id := g.ECS.AddEntity(&HealthPotion{Amount: amount, Name: name}, p)
+            g.ECS.Styles[id] = Style{Rune: '!', Color: colorConsumable}
+            g.ECS.Name[id] = name
+        case r < 0.9: // magicArrow
+            name := "magic arrow scroll"
+            id := g.ECS.AddEntity(&MagicArrowScroll{Damage: 3, Range: 5}, p)
+            g.ECS.Styles[id] = Style{Rune: '?', Color: colorConsumable}
+            g.ECS.Name[id] = name
+        default:
+            name := "explode scroll"
+            id := g.ECS.AddEntity(&ExplodeScroll{Damage: 100, Radius: 10}, p)
+            g.ECS.Styles[id] = Style{Rune: '?', Color: colorConsumable}
+            g.ECS.Name[id] = name
+        }
     }
 }
 
@@ -232,16 +248,40 @@ func (g *Game) InventoryRemove(actor, itemID int) (err error) {
 
 // InventoryUseItem ... Use an item at itemID from actor's inventory 
 func (g *Game)InventoryUseItem(actor, itemID int) (err error) {
+    err = g.InventoryUseItemWithTarget(actor, itemID, nil)
+    return
+}
+
+func (g *Game)InventoryUseItemWithTarget(actor, itemID int, target *gruid.Point) (err error) {
     inv := g.ECS.Inventories[actor]
     i := inv.Items[itemID]
     switch e := g.ECS.Entities[i].(type) {
     case Consumable:
-        err = e.Activate(g, ItemAction{Actor: actor,})
+        itemAction := ItemAction{Actor: actor, Target: target}
+        err = e.Activate(g, itemAction)
         if err != nil {
             return
         }
-        g.Logf("You used portion", colorStatusHealthy)
+
     }
     inv.Items = inv.Items[:len(inv.Items) -1]
     return 
+}
+
+// TargetingRadius ... returns target radius of item at itemID of actor's inventory if it needs target
+func (g *Game) TargetingRadius (actor int, itemID int) (radius int, err error) {
+    inv := g.ECS.Inventories[actor]
+    if len(inv.Items) <= itemID{
+        err = errors.New("index is out of range")
+        return 
+    }
+    item := inv.Items[itemID]
+    switch e := g.ECS.Entities[item].(type) {
+    case Targetter:
+        radius = e.TargetRadius()
+        return
+    default:
+        err = errors.New(ErrNoTargeting)
+        return  
+    }
 }

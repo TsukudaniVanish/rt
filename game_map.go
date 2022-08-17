@@ -13,7 +13,7 @@ const (
 	Floor 
 	minCaveSize = 400
     MapWidth = UIWidth
-    MapHight = UIHight - 7
+    MapHight = UIHight - LogLines - StatusLines
 )
 
 type Path struct {

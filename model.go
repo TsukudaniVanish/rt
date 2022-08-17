@@ -2,18 +2,23 @@ package main
 
 import (
 	"sort"
+	"strings"
 	"unicode/utf8"
-    "strings"
+    "fmt"
 
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
 	"github.com/anaseto/gruid/ui"
 )
 
+const AttrReverse = 1 << iota 
+
 const (
     playerName = "You"
     UIWidth = 80
     UIHight = 24
+    LogLines = 2 
+    StatusLines = 3
 )
 
 const (
@@ -37,6 +42,7 @@ const (
     ActionWait ActionType = "action wait"
 	ActionQuit ActionType = "action quit"
     ActionViewMessage ActionType = "action view message"
+    ActionExamine ActionType = "action examine a map"
 )
 
 type UIMode int 
@@ -46,6 +52,8 @@ const (
     modeMessageViewer
     modeInventoryActivate
     modeInventoryDrop
+    modeTargetting 
+    modeExamination // map examination mode 
 )
 
 type Model struct {
@@ -58,9 +66,14 @@ type Model struct {
     StatusLabel *ui.Label
     DescLabel *ui.Label // label for description
     Viewer *ui.Pager
-    MousePos gruid.Point
+    Target Targetting
 }
 
+type Targetting struct {
+    Position gruid.Point // target position in ui (* != map position)
+    ItemID int // item to use after select a target
+    Radius int 
+}
 
 type UIAction struct {
 	Type ActionType
@@ -90,6 +103,11 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
     case modeInventoryDrop, modeInventoryActivate:
         m.updateInventory(msg)
         return nil
+    case modeTargetting, modeExamination:
+        println("update targetting!")
+        m.updateTargetting(msg)
+        println(fmt.Sprintf("%v", m.Target.Position))
+        return nil
     default: // modeNormal
         switch msg := msg.(type) {
         case gruid.MsgInit:
@@ -101,7 +119,7 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
             m.Game = &Game{}
 
             // init map
-            size := gruid.Point{X: MapWidth,Y: MapHight} 
+            size := gruid.Point{X:MapWidth, Y:MapHight}
             m.Game.Map = NewMap(size)
             m.Game.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
             m.Game.ECS = NewEcs()
@@ -126,7 +144,7 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
             m.updateMsgKeyDown(msg)
         case gruid.MsgMouse:
             if msg.Action == gruid.MouseMove {
-                m.MousePos = msg.P
+                m.Target.Position = msg.P
             }
         }
         eff =  m.handleAction()   
@@ -134,8 +152,176 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
     }
 }
 
+
+func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
+	pdelta := gruid.Point{}
+	switch msg.Key {
+	case gruid.KeyArrowLeft, "a":
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(-1, 0)}
+	case gruid.KeyArrowRight, "d":
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(1, 0)}
+	case gruid.KeyArrowUp, "w":
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, -1)}
+	case gruid.KeyArrowDown, "s":
+		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, 1)}
+    case gruid.KeyEnter, ".":
+        m.Action = UIAction{Type: ActionWait}
+	case gruid.KeyEscape:
+		m.Action = UIAction{Type: ActionQuit}
+    case "m":
+        m.Action = UIAction{Type: ActionViewMessage}
+    case "i":
+        m.Action = UIAction{Type: ActionInventory}
+    case "D":
+        m.Action = UIAction{Type: ActionDrop}
+    case "g":
+        m.Action = UIAction{Type: ActionPickup}
+    case "x":
+        m.Action = UIAction{Type: ActionExamine}
+	}
+
+}
+
+func (m *Model) updateInventory(msg gruid.Msg) {
+    m.Inventory.Update(msg)
+    switch m.Inventory.Action(){
+    case ui.MenuQuit:
+        m.Mode = modeNormal
+        return 
+    case ui.MenuInvoke:
+        n := m.Inventory.Active()
+        var err error 
+        switch m.Mode{
+        case modeInventoryDrop:
+            err = m.Game.InventoryRemove(m.Game.ECS.PlayerID, n)
+        case modeInventoryActivate:
+            radius, err := m.Game.TargetingRadius(m.Game.ECS.PlayerID, n)
+            if err != nil {
+                if err.Error() == ErrNoTargeting { // no targetting
+                    err = m.Game.InventoryUseItem(m.Game.ECS.PlayerID, n)
+                } else { // error 
+                    m.Game.Logf("%v", colorLogSpecial, err)
+                }
+            } else { // change mode to targetting 
+                m.Target = Targetting{
+                    ItemID: n,
+                    Position: m.Game.ECS.PlayerPosition().Shift(0, LogLines),
+                    Radius: radius,
+                }
+                m.Mode = modeTargetting
+                return
+            }
+        }
+        if err != nil {
+            m.Game.Logf("%v", colorLogSpecial, err)
+        } else {
+            m.Game.EndTurn()
+        }
+        m.Mode = modeNormal
+    }
+}
+
+func (m *Model)updateTargetting(msg gruid.Msg) {
+    mapRange := m.getMapRange()
+    if !m.Target.Position.In(mapRange) {
+        m.Target.Position = m.Game.ECS.PlayerPosition().Add(mapRange.Min)
+    }
+    p := m.convertUiPositionToMapPosition(m.Target.Position)
+    switch msg := msg.(type) {
+    case gruid.MsgKeyDown:
+        switch msg.Key {
+        case gruid.KeyArrowLeft, "a":
+           p = p.Shift(-1, 0)
+        case gruid.KeyArrowRight, "d":
+           p = p.Shift(1, 0)
+        case gruid.KeyArrowUp, "w":
+           p = p.Shift(0, -1)
+        case gruid.KeyArrowDown, "s":
+           p = p.Shift(0, 1)
+        case gruid.KeyEnter, ".":
+            if m.Mode == modeExamination {
+                break
+            }
+            m.activateTarget(p)
+            return 
+        case gruid.KeyEscape, "q":
+            m.Target = Targetting{}
+            m.Mode = modeNormal
+            return
+        }
+        m.Target.Position = m.convertMapPositionToUiPosition(p)
+    case gruid.MsgMouse:
+        switch msg.Action{
+        case gruid.MouseMove:
+            m.Target.Position = msg.P
+        case gruid.MouseMain:
+            if m.Mode == modeExamination {
+                break
+            }
+            m.activateTarget(p)
+            return 
+        }
+    }
+}
+
+func (m *Model) activateTarget(p gruid.Point) {
+    err := m.Game.InventoryUseItemWithTarget(m.Game.ECS.PlayerID, m.Target.ItemID, &p)
+    if err != nil {
+        m.Game.Logf("%v", colorLogSpecial, err)
+    } else {
+        m.Game.EndTurn()
+    }
+    m.Target = Targetting{}
+    m.Mode = modeNormal
+}
+
+func (m *Model)handleAction() (eff gruid.Effect) {
+	switch m.Action.Type{
+	case ActionBump:
+		np := m.Game.ECS.PlayerPosition().Add(m.Action.Delta)
+		m.Game.Bump(np)
+    case ActionDrop:
+        m.OpenInventory("Drop Item")
+        m.Mode = modeInventoryDrop
+    case ActionInventory:
+        m.OpenInventory("Use item")
+        m.Mode = modeInventoryActivate
+    case ActionPickup:
+        m.PickUpItem()
+	case ActionWait:
+        m.Game.EndTurn()
+    case ActionViewMessage:
+        m.Mode = modeMessageViewer
+        lines := []ui.StyledText{}
+        for _, e := range m.Game.Logs {
+            st := gruid.Style{}
+            st.Fg = e.Color
+            lines = append(lines, ui.NewStyledText(e.String(), st))
+        }
+        m.Viewer.SetLines(lines)
+    case ActionExamine:
+        m.Mode = modeExamination
+        m.Target.Position = m.Game.ECS.PlayerPosition().Shift(0, LogLines)
+    case ActionQuit:
+		eff = gruid.End()
+	}
+    if m.Game.ECS.PlayerDead() {
+        m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
+        m.Mode = modeEnd
+        return nil 
+    }
+	return
+}
+
+func (m *Model) InitializeMessageViewer() {
+    m.Viewer = ui.NewPager(ui.PagerConfig{
+        Grid: gruid.NewGrid(UIWidth, UIHight),
+        Box: &ui.Box{},
+    })
+}
+
 func (m *Model)Draw() (grid gruid.Grid) {
-    mapGrid := m.Grid.Slice(m.Grid.Range().Shift(0, 2, 0, -5))
+    mapGrid := m.Grid.Slice(m.getMapRange())
     switch m.Mode {
     case modeMessageViewer:
         m.Grid.Copy(m.Viewer.Draw())
@@ -185,81 +371,20 @@ func (m *Model)Draw() (grid gruid.Grid) {
 	}
 
     m.DrawNames(mapGrid)
+    // for examine mode 
+    if m.Mode == modeExamination || m.Mode == modeTargetting {
+        p := m.convertUiPositionToMapPosition(m.Target.Position)
+        c := mapGrid.At(p)
+        c.Rune = '+'
+        mapGrid.Set(p, c)
+    }
+
 
     // draw ui's
-    m.DrawLog(m.Grid.Slice(m.Grid.Range().Lines(0, 2)))
-    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Lines(m.Grid.Size().Y -4, m.Grid.Size().Y -1)))
-    grid = m.Grid 
+    m.DrawLog(m.Grid.Slice(m.Grid.Range().Lines(0, LogLines)))
+    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Lines(m.Grid.Size().Y -StatusLines, m.Grid.Size().Y)))
+    grid = m.Grid
 	return
-}
-
-func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
-	pdelta := gruid.Point{}
-	switch msg.Key {
-	case gruid.KeyArrowLeft, "a":
-		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(-1, 0)}
-	case gruid.KeyArrowRight, "d":
-		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(1, 0)}
-	case gruid.KeyArrowUp, "w":
-		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, -1)}
-	case gruid.KeyArrowDown, "s":
-		m.Action = UIAction{Type: ActionBump, Delta: pdelta.Shift(0, 1)}
-    case gruid.KeyEnter, ".":
-        m.Action = UIAction{Type: ActionWait}
-	case gruid.KeyEscape:
-		m.Action = UIAction{Type: ActionQuit}
-    case "m":
-        m.Action = UIAction{Type: ActionViewMessage}
-    case "i":
-        m.Action = UIAction{Type: ActionInventory}
-    case "D":
-        m.Action = UIAction{Type: ActionDrop}
-    case "g":
-        m.Action = UIAction{Type: ActionPickup}
-	}
-
-}
-
-func (m *Model)handleAction() (eff gruid.Effect) {
-	switch m.Action.Type{
-	case ActionBump:
-		np := m.Game.ECS.PlayerPosition().Add(m.Action.Delta)
-		m.Game.Bump(np)
-    case ActionDrop:
-        m.OpenInventory("Drop Item")
-        m.Mode = modeInventoryDrop
-    case ActionInventory:
-        m.OpenInventory("Use item")
-        m.Mode = modeInventoryActivate
-    case ActionPickup:
-        m.PickUpItem()
-	case ActionWait:
-        m.Game.EndTurn()
-    case ActionViewMessage:
-        m.Mode = modeMessageViewer
-        lines := []ui.StyledText{}
-        for _, e := range m.Game.Logs {
-            st := gruid.Style{}
-            st.Fg = e.Color
-            lines = append(lines, ui.NewStyledText(e.String(), st))
-        }
-        m.Viewer.SetLines(lines)
-    case ActionQuit:
-		eff = gruid.End()
-	}
-    if m.Game.ECS.PlayerDead() {
-        m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
-        m.Mode = modeEnd
-        return nil 
-    }
-	return
-}
-
-func (m *Model) InitializeMessageViewer() {
-    m.Viewer = ui.NewPager(ui.PagerConfig{
-        Grid: gruid.NewGrid(UIWidth, UIHight),
-        Box: &ui.Box{},
-    })
 }
 
 func (m *Model) DrawLog(gd gruid.Grid) {
@@ -293,11 +418,11 @@ func (m *Model) DrawStatus(gd gruid.Grid) {
 }
 
 func (m *Model) DrawNames(gd gruid.Grid) {
-    maprg := gruid.NewRange(0, 2, UIWidth, UIWidth)
-    if !m.MousePos.In(maprg) {
+    maprg := m.getMapRange()
+    if !m.Target.Position.In(maprg) {
         return 
     }
-    p := m.MousePos.Sub(gruid.Point{X:0, Y: 2})
+    p := m.Target.Position.Sub(maprg.Min)
     names := []string{}
     for i, q := range m.Game.ECS.Positions {
         if q != p || !m.Game.InFOV(q) {
@@ -374,26 +499,20 @@ func (m *Model)OpenInventory(title string) {
     })
 }
 
-func (m *Model) updateInventory(msg gruid.Msg) {
-    m.Inventory.Update(msg)
-    switch m.Inventory.Action(){
-    case ui.MenuQuit:
-        m.Mode = modeNormal
-        return 
-    case ui.MenuInvoke:
-        n := m.Inventory.Active()
-        var err error 
-        switch m.Mode{
-        case modeInventoryDrop:
-            err = m.Game.InventoryRemove(m.Game.ECS.PlayerID, n)
-        case modeInventoryActivate:
-            err = m.Game.InventoryUseItem(m.Game.ECS.PlayerID, n)
-        }
-        if err != nil {
-            m.Game.Logf("%v", colorLogSpecial, err)
-        } else {
-            m.Game.EndTurn()
-        }
-        m.Mode = modeNormal
-    }
+func (m *Model) getMapRange() gruid.Range {
+    return gruid.NewRange(0, LogLines, UIWidth, UIHight - StatusLines)
+}
+
+func (m *Model) getUIRange() gruid.Range {
+    return gruid.NewRange(0, 0, UIWidth, UIHight)
+}
+
+func (m *Model) convertUiPositionToMapPosition(uipos gruid.Point) gruid.Point {
+    mrg := m.getMapRange()
+    return uipos.Sub(mrg.Min)
+}
+
+func (m *Model) convertMapPositionToUiPosition (mapPos gruid.Point) gruid.Point {
+    mrg := m.getMapRange()
+    return mapPos.Add(mrg.Min)
 }
