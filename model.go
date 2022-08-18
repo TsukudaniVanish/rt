@@ -1,13 +1,14 @@
 package main
 
 import (
+	"fmt"
+	"math/rand"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
-    "fmt"
 
 	"github.com/anaseto/gruid"
-	"github.com/anaseto/gruid/paths"
 	"github.com/anaseto/gruid/ui"
 )
 
@@ -40,6 +41,7 @@ const (
     ActionInventory ActionType = "action inventory"
     ActionPickup ActionType = "action pickup"
     ActionWait ActionType = "action wait"
+    ActionSave ActionType = "action save"
 	ActionQuit ActionType = "action quit"
     ActionViewMessage ActionType = "action view message"
     ActionExamine ActionType = "action examine a map"
@@ -49,11 +51,20 @@ type UIMode int
 const (
     modeNormal UIMode = iota
     modeEnd 
+    modeMenu
     modeMessageViewer
     modeInventoryActivate
     modeInventoryDrop
     modeTargetting 
     modeExamination // map examination mode 
+)
+
+type MenuEntry int 
+const (
+    MenuNewGame MenuEntry = iota
+    MenuContinue
+    MenuQuit
+    
 )
 
 type Model struct {
@@ -62,6 +73,8 @@ type Model struct {
 	Action UIAction
     Mode UIMode
     Inventory *ui.Menu
+    GameMenu *ui.Menu
+    MenuInfoLabel *ui.Label // for menu info (errors) 
     LogLabel *ui.Label
     StatusLabel *ui.Label
     DescLabel *ui.Label // label for description
@@ -80,7 +93,36 @@ type UIAction struct {
 	Delta gruid.Point
 }
 
+// init ... initialize Model
+// only called at App Initialize
+func (m *Model) init() (eff gruid.Effect) {
+    m.MenuInfoLabel = &ui.Label{}
+    m.LogLabel = &ui.Label{}
+    m.StatusLabel = &ui.Label{}
+    m.DescLabel = &ui.Label{Box: &ui.Box{}}
+    m.InitializeMessageViewer()
+    m.Mode = modeMenu
+
+    menuEntries := []ui.MenuEntry{
+        MenuNewGame: {Text: ui.Text("(N)ew game"), Keys: []gruid.Key{"N", "n"}},
+        MenuContinue: {Text: ui.Text("(C)ontinue last game"), Keys: []gruid.Key{"C", "c"}},
+        MenuQuit: {Text: ui.Text("(Q)uit game"), Keys: []gruid.Key{"Q", "q", gruid.KeyEscape}},
+    }
+
+    m.GameMenu = ui.NewMenu(ui.MenuConfig{
+        Grid: gruid.NewGrid(UIWidth / 2, len(menuEntries) + 2),
+        Entries: menuEntries,
+        Box: &ui.Box{Title: ui.Text("Game Menu")},
+    })
+    return
+}
+
 func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
+    switch msg.(type) {
+    case gruid.MsgInit:
+        return m.init()
+    }
+    // reset last action
 	m.Action = UIAction{}
     switch m.Mode{
     case modeEnd:
@@ -93,6 +135,8 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
                 }
         }
         return nil
+    case modeMenu:
+        return m.updateMenu(msg)
     case modeMessageViewer:
         m.Viewer.Update(msg)
         if m.Viewer.Action() == ui.PagerQuit {
@@ -110,36 +154,6 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
         return nil
     default: // modeNormal
         switch msg := msg.(type) {
-        case gruid.MsgInit:
-            m.LogLabel = &ui.Label{}
-            m.StatusLabel = &ui.Label{}
-            m.DescLabel = &ui.Label{Box: &ui.Box{}}
-            m.InitializeMessageViewer()
-
-            m.Game = &Game{}
-
-            // init map
-            size := gruid.Point{X:MapWidth, Y:MapHight}
-            m.Game.Map = NewMap(size)
-            m.Game.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
-            m.Game.ECS = NewEcs()
-
-            // init player
-            m.Game.ECS.PlayerID = m.Game.ECS.AddEntity(NewPlayer(), m.Game.Map.RandFloor())
-            m.Game.ECS.Statuses[m.Game.ECS.PlayerID] = &Status{
-                HP: 30, MaxHP: 30, Power: 5, Defence: 2,
-            }
-            m.Game.ECS.Styles[m.Game.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
-            m.Game.ECS.Name[m.Game.ECS.PlayerID] = playerName
-            m.Game.ECS.Inventories[m.Game.ECS.PlayerID] = &Inventory{}
-
-            m.Game.UpdateFOV()
-
-            // add enemies 
-            m.Game.SpawnEnemies()
-
-            // add Items 
-            m.Game.PlaceItems()
         case gruid.MsgKeyDown:
             m.updateMsgKeyDown(msg)
         case gruid.MsgMouse:
@@ -178,6 +192,8 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
         m.Action = UIAction{Type: ActionPickup}
     case "x":
         m.Action = UIAction{Type: ActionExamine}
+    case "S":
+        m.Action = UIAction{Type: ActionSave}
 	}
 
 }
@@ -264,6 +280,42 @@ func (m *Model)updateTargetting(msg gruid.Msg) {
     }
 }
 
+func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
+    rg := m.getUIRange().Intersect(m.getUIRange().Add(m.menuAnchor()))
+    m.GameMenu.Update(rg.RelMsg(msg))
+    switch m.GameMenu.Action() {
+    case ui.MenuMove:
+        m.MenuInfoLabel.SetText("")
+    case ui.MenuInvoke:
+        m.MenuInfoLabel.SetText("")
+        switch m.GameMenu.Active() {
+        case int(MenuNewGame):
+            m.Game = NewGame()
+            m.Mode = modeNormal
+        case int(MenuContinue):
+            data, err := LoadFile("save")
+            if err != nil {
+                m.MenuInfoLabel.SetText(err.Error())
+            }
+
+            g, err := Decode(data)
+            if err != nil {
+                m.MenuInfoLabel.SetText(err.Error())
+            }
+            m.Game = g 
+            m.Game.Map.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+            m.Mode = modeNormal
+        case int(MenuQuit):
+            eff = gruid.End()
+            return 
+        }
+    case ui.MenuQuit:
+        eff = gruid.End()
+        return
+    }
+    return nil 
+}
+
 func (m *Model) activateTarget(p gruid.Point) {
     err := m.Game.InventoryUseItemWithTarget(m.Game.ECS.PlayerID, m.Target.ItemID, &p)
     if err != nil {
@@ -304,6 +356,8 @@ func (m *Model)handleAction() (eff gruid.Effect) {
         m.Target.Position = m.Game.ECS.PlayerPosition().Shift(0, LogLines)
     case ActionQuit:
 		eff = gruid.End()
+    case ActionSave:
+        // todo
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
@@ -515,4 +569,9 @@ func (m *Model) convertUiPositionToMapPosition(uipos gruid.Point) gruid.Point {
 func (m *Model) convertMapPositionToUiPosition (mapPos gruid.Point) gruid.Point {
     mrg := m.getMapRange()
     return mapPos.Add(mrg.Min)
+}
+
+func (m *Model) menuAnchor() (p gruid.Point) {
+    p = gruid.Point{X: 10, Y:6}
+    return
 }

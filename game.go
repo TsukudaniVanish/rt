@@ -21,6 +21,34 @@ type Game struct {
     Logs []*LogEntry
 }
 
+func NewGame() (g *Game) {
+   g = &Game{}
+
+    // init map
+    size := gruid.Point{X:MapWidth, Y:MapHight}
+   g.Map = NewMap(size)
+   g.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
+   g.ECS = NewEcs()
+
+    // init player
+   g.ECS.PlayerID =g.ECS.AddEntity(NewPlayer(),g.Map.RandFloor())
+   g.ECS.Statuses[g.ECS.PlayerID] = &Status{
+        HP: 30, MaxHP: 30, Power: 5, Defence: 2,
+    }
+   g.ECS.Styles[g.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
+   g.ECS.Name[g.ECS.PlayerID] = playerName
+   g.ECS.Inventories[g.ECS.PlayerID] = &Inventory{}
+
+   g.UpdateFOV()
+
+    // add enemies 
+   g.SpawnEnemies()
+
+    // add Items 
+   g.PlaceItems()
+   return
+}
+
 // Bump ... player move or attack
 func (g *Game)Bump (to gruid.Point) {
 	if !g.Map.IsWalkable(to) {
