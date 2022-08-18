@@ -38,6 +38,24 @@ func Encode(g *Game) (encodedData []byte, err error) {
 	return 
 }
 
+func EncodeNoGzip(g *Game) (data []byte, err error) {
+	buf := &bytes.Buffer{}
+	enc := gob.NewEncoder(buf)
+	err = enc.Encode(g)
+	if err != nil {
+		return 
+	}
+	data = buf.Bytes()
+	return 
+}
+
+func DecodeNoGzip(data []byte) (g *Game, err error) {
+	dec := gob.NewDecoder(bytes.NewReader(data))
+	g = &Game{}
+	err = dec.Decode(g)
+	return
+}
+
 func Decode(data []byte) (g *Game, err error) {
 	g = &Game{}
 	buf := bytes.NewReader(data)

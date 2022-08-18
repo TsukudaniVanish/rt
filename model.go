@@ -301,7 +301,7 @@ func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
             }
             println("Load data")
 
-            g, err := Decode(data)
+            g, err := DecodeNoGzip(data)
             if err != nil {
                 m.MenuInfoLabel.SetText(err.Error())
                 break
@@ -362,7 +362,7 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 		eff = gruid.End()
     case ActionSave:
         println("start save")
-        data, err := Encode(m.Game)
+        data, err := EncodeNoGzip(m.Game)
         if err != nil {
             m.Game.Logf("could not save game", colorStatusWounded)
             log.Fatal(err)
