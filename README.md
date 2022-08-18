@@ -14,3 +14,11 @@ main function and model struct , tile manager for gruid
 
 ### save 
 saving utilities
+
+
+## Usage
+
+run game
+```
+go run ./main/
+```
