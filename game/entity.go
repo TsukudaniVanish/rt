@@ -1,13 +1,10 @@
-package main
+package game
 
 import (
+	"domain"
 
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/rl"
-)
-
-const (
-	maxLOS = 10
 )
 
 // Entity Component System
@@ -165,6 +162,7 @@ type Player struct {
 }
 
 func NewPlayer() (player *Player) {
+	maxLOS := domain.MaxLOS
 	player = &Player{}
 	player.FOV = rl.NewFOV(gruid.NewRange(-maxLOS, -maxLOS, maxLOS+1, maxLOS+1))
 	return

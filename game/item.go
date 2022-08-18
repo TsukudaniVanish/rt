@@ -1,9 +1,11 @@
-package main
+package game
 
 import (
 	"errors"
 	"fmt"
 	"log"
+
+    "domain"
 
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
@@ -42,7 +44,7 @@ func (p *HealthPotion) Activate(g *Game, a ItemAction) (err error) {
         err = errors.New("your health is already full")
         return
     }
-    g.Logf("You used portion", colorStatusHealthy)
+    g.Logf("You used portion", domain.ColorStatusHealthy)
    return
 }
 
@@ -72,7 +74,7 @@ func (ms *MagicArrowScroll) Activate(g *Game, a ItemAction) (err error) {
     }
     st, ok := g.ECS.Statuses[targetID]
     if ok {
-        g.Logf("a magic lightning strikes %v", colorStatusHealthy, g.ECS.Name[targetID])
+        g.Logf("a magic lightning strikes %v", domain.ColorStatusHealthy, g.ECS.Name[targetID])
         st.Damage(ms.Damage)
     } else {
         log.Fatalf("could not find status of %d", targetID)
@@ -101,7 +103,7 @@ func (es *ExplodeScroll) Activate(g *Game, a ItemAction) (err error) {
         if q == g.ECS.PlayerPosition() || g.ECS.Dead(i) {
             continue
         }
-        g.Logf("%v is engulfed in vortex of mana", colorStatusHealthy, g.ECS.GetName(i))
+        g.Logf("%v is engulfed in vortex of mana", domain.ColorStatusHealthy, g.ECS.GetName(i))
         st.Damage(es.Damage)
         hit++
     }

@@ -1,0 +1,8 @@
+go 1.18
+
+use (
+	./domain
+	./game
+	./main
+	./save
+)

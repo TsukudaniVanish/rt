@@ -3,13 +3,14 @@ import (
 	"log"
 	"context"
 
+	"domain"
 
 	"github.com/anaseto/gruid"
 	sdl "github.com/anaseto/gruid-sdl"
 )
 
 func main() {
-	gd := gruid.NewGrid(UIWidth, UIHight)
+	gd := gruid.NewGrid(domain.UIWidth, domain.UIHight)
 	m := &Model{ Grid: gd}
 	// Specify a driver among the provided ones.
 	tile, err := GetTileDrawer()

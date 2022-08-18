@@ -9,31 +9,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+    "game"
+    "domain"
+    "save"
+
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/ui"
 )
 
-const AttrReverse = 1 << iota 
-
-const (
-    playerName = "You"
-    UIWidth = 80
-    UIHight = 24
-    LogLines = 2 
-    StatusLines = 3
-)
-
-const (
-	colorFOV gruid.Color = iota + 1
-	colorPlayer 
-	colorEnemy
-    colorConsumable
-    colorLogPlayerAttack
-    colorLogEnemyAttack
-    colorLogSpecial
-    colorStatusHealthy
-    colorStatusWounded
-)
 type ActionType string 
 const (
 	NoAction ActionType = "no action"
@@ -70,7 +53,7 @@ const (
 
 type Model struct {
 	Grid gruid.Grid
-	Game *Game
+	Game *game.Game
 	Action UIAction
     Mode UIMode
     Inventory *ui.Menu
@@ -111,7 +94,7 @@ func (m *Model) init() (eff gruid.Effect) {
     }
 
     m.GameMenu = ui.NewMenu(ui.MenuConfig{
-        Grid: gruid.NewGrid(UIWidth / 2, len(menuEntries) + 2),
+        Grid: gruid.NewGrid(domain.UIWidth / 2, len(menuEntries) + 2),
         Entries: menuEntries,
         Box: &ui.Box{Title: ui.Text("Game Menu")},
     })
@@ -214,15 +197,15 @@ func (m *Model) updateInventory(msg gruid.Msg) {
         case modeInventoryActivate:
             radius, err := m.Game.TargetingRadius(m.Game.ECS.PlayerID, n)
             if err != nil {
-                if err.Error() == ErrNoTargeting { // no targetting
+                if err.Error() == domain.ErrNoTargeting { // no targetting
                     err = m.Game.InventoryUseItem(m.Game.ECS.PlayerID, n)
                 } else { // error 
-                    m.Game.Logf("%v", colorLogSpecial, err)
+                    m.Game.Logf("%v", domain.ColorLogSpecial, err)
                 }
             } else { // change mode to targetting 
                 m.Target = Targetting{
                     ItemID: n,
-                    Position: m.Game.ECS.PlayerPosition().Shift(0, LogLines),
+                    Position: m.Game.ECS.PlayerPosition().Shift(0, domain.LogLines),
                     Radius: radius,
                 }
                 m.Mode = modeTargetting
@@ -230,7 +213,7 @@ func (m *Model) updateInventory(msg gruid.Msg) {
             }
         }
         if err != nil {
-            m.Game.Logf("%v", colorLogSpecial, err)
+            m.Game.Logf("%v", domain.ColorLogSpecial, err)
         } else {
             m.Game.EndTurn()
         }
@@ -291,22 +274,22 @@ func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
         m.MenuInfoLabel.SetText("")
         switch m.GameMenu.Active() {
         case int(MenuNewGame):
-            m.Game = NewGame()
+            m.Game = game.NewGame()
             m.Mode = modeNormal
         case int(MenuContinue):
-            data, err := LoadFile("save")
+            data, err := save.LoadFile("save")
             if err != nil {
                 m.MenuInfoLabel.SetText(err.Error())
                 break
             }
 
-            g, err := DecodeNoGzip(data)
+            g, err := save.DecodeNoGzip(data)
             if err != nil {
                 m.MenuInfoLabel.SetText(err.Error())
                 break
             }
             m.Game = g 
-            m.Game.Map.rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+            m.Game.Map.SetRand(rand.New(rand.NewSource(time.Now().UnixNano())))
             m.Mode = modeNormal
         case int(MenuQuit):
             eff = gruid.End()
@@ -322,7 +305,7 @@ func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
 func (m *Model) activateTarget(p gruid.Point) {
     err := m.Game.InventoryUseItemWithTarget(m.Game.ECS.PlayerID, m.Target.ItemID, &p)
     if err != nil {
-        m.Game.Logf("%v", colorLogSpecial, err)
+        m.Game.Logf("%v", domain.ColorLogSpecial, err)
     } else {
         m.Game.EndTurn()
     }
@@ -356,26 +339,26 @@ func (m *Model)handleAction() (eff gruid.Effect) {
         m.Viewer.SetLines(lines)
     case ActionExamine:
         m.Mode = modeExamination
-        m.Target.Position = m.Game.ECS.PlayerPosition().Shift(0, LogLines)
+        m.Target.Position = m.Game.ECS.PlayerPosition().Shift(0, domain.LogLines)
     case ActionQuit:
 		eff = gruid.End()
     case ActionSave:
-        data, err := EncodeNoGzip(m.Game)
+        data, err := save.EncodeNoGzip(m.Game)
         if err != nil {
-            m.Game.Logf("could not save game", colorStatusWounded)
+            m.Game.Logf("could not save game", domain.ColorStatusWounded)
             log.Fatal(err)
             break
         }
         
-        err = SaveFile("save", data)
+        err = save.SaveFile("save", data)
         if err != nil {
-            m.Game.Logf("could not save game", colorStatusWounded)
+            m.Game.Logf("could not save game", domain.ColorStatusWounded)
             log.Fatal(err)
             break
         }
 	}
     if m.Game.ECS.PlayerDead() {
-        m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
+        m.Game.Logf("You Died -- press Escape to quit", domain.ColorLogSpecial)
         m.Mode = modeEnd
         return nil 
     }
@@ -384,7 +367,7 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 
 func (m *Model) InitializeMessageViewer() {
     m.Viewer = ui.NewPager(ui.PagerConfig{
-        Grid: gruid.NewGrid(UIWidth, UIHight),
+        Grid: gruid.NewGrid(domain.UIWidth, domain.UIHight),
         Box: &ui.Box{},
     })
 }
@@ -417,7 +400,7 @@ func (m *Model)Draw() (grid gruid.Grid) {
 
 		c := gruid.Cell{Rune: g.Map.Rune(it.Cell()),}
 		if g.InFOV(it.P()) {
-			c.Style.Bg = colorFOV
+			c.Style.Bg = domain.ColorFOV
 		}
         mapGrid.Set(it.P(), c)
 	}
@@ -453,8 +436,8 @@ func (m *Model)Draw() (grid gruid.Grid) {
 
 
     // draw ui's
-    m.DrawLog(m.Grid.Slice(m.Grid.Range().Lines(0, LogLines)))
-    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Lines(m.Grid.Size().Y -StatusLines, m.Grid.Size().Y)))
+    m.DrawLog(m.Grid.Slice(m.Grid.Range().Lines(0, domain.LogLines)))
+    m.DrawStatus(m.Grid.Slice(m.Grid.Range().Lines(m.Grid.Size().Y -domain.StatusLines, m.Grid.Size().Y)))
     grid = m.Grid
 	return
 }
@@ -478,11 +461,11 @@ func (m *Model) DrawLog(gd gruid.Grid) {
 
 func (m *Model) DrawStatus(gd gruid.Grid) {
     st := gruid.Style{}
-    st.Fg = colorStatusHealthy
+    st.Fg = domain.ColorStatusHealthy
     g := m.Game
     statusPlayer := g.ECS.Statuses[g.ECS.PlayerID]
     if statusPlayer.HP < statusPlayer.MaxHP / 2 {
-        st.Fg = colorStatusWounded
+        st.Fg = domain.ColorStatusWounded
     }
     m.StatusLabel.Content = ui.Textf("HP: %d/%d", statusPlayer.HP, statusPlayer.MaxHP)
     m.StatusLabel.Box = &ui.Box{Title: ui.Text("Status")}
@@ -515,10 +498,10 @@ func (m *Model) DrawNames(gd gruid.Grid) {
     width := utf8.RuneCountInString(text) + 2
     rg := gruid.NewRange(p.X +1 , p.Y -1, p.X + 1 + width, p.Y + 2)
     // if box is on edge. adjust place of the box
-    if p.X + 1 + width >= UIWidth {
+    if p.X + 1 + width >= domain.UIWidth {
         rg = rg.Shift(-1 -width, 0, -1 -width, 0)
     }
-    if p.Y + 2> MapHight {
+    if p.Y + 2> domain.MapHight {
         rg = rg.Shift(0, -1, 0, -1)
     }
     if p.Y -1 <0 {
@@ -547,13 +530,13 @@ func (m *Model) PickUpItem() {
         }
         err := g.InventoryAdd(g.ECS.PlayerID, i)
         if err != nil {
-            if err.Error() == ErrNoShow {
+            if err.Error() == domain.ErrNoShow {
                 continue 
             }
-            g.Logf("Could not pickup: %v", colorStatusWounded, err)
+            g.Logf("Could not pickup: %v", domain.ColorStatusWounded, err)
             return 
         }
-        g.Logf("You pickup: %v", colorStatusHealthy, g.ECS.Name[i])
+        g.Logf("You pickup: %v", domain.ColorStatusHealthy, g.ECS.Name[i])
         g.EndTurn()
         return 
     }
@@ -573,18 +556,18 @@ func (m *Model)OpenInventory(title string) {
         r++
     }
     m.Inventory = ui.NewMenu(ui.MenuConfig{
-        Grid: gruid.NewGrid(40, MapHight),
+        Grid: gruid.NewGrid(40, domain.MapHight),
         Box: &ui.Box{Title: ui.Text(title),},
         Entries: entries,
     })
 }
 
 func (m *Model) getMapRange() gruid.Range {
-    return gruid.NewRange(0, LogLines, UIWidth, UIHight - StatusLines)
+    return gruid.NewRange(0, domain.LogLines, domain.UIWidth, domain.UIHight - domain.StatusLines)
 }
 
 func (m *Model) getUIRange() gruid.Range {
-    return gruid.NewRange(0, 0, UIWidth, UIHight)
+    return gruid.NewRange(0, 0, domain.UIWidth, domain.UIHight)
 }
 
 func (m *Model) convertUiPositionToMapPosition(uipos gruid.Point) gruid.Point {

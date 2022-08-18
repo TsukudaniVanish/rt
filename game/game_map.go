@@ -1,19 +1,14 @@
-package main
+package game
 
 import (
 	"math/rand"
 	"time"
 
+	"domain"
+
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
 	"github.com/anaseto/gruid/rl"
-)
-const (
-	Wall rl.Cell = iota
-	Floor 
-	minCaveSize = 400
-    MapWidth = UIWidth
-    MapHight = UIHight - LogLines - StatusLines
 )
 
 type Path struct {
@@ -45,16 +40,20 @@ func NewMap(size gruid.Point) (gmap *GameMap) {
 	return
 }
 
+func (gmap *GameMap)SetRand(rand *rand.Rand) {
+	gmap.rand = rand 
+}
+
 func (gmap *GameMap)IsWalkable(p gruid.Point) (isWalkable bool) {
-	isWalkable = gmap.Grid.At(p) == Floor && gmap.Grid.Contains(p)
+	isWalkable = gmap.Grid.At(p) == domain.Floor && gmap.Grid.Contains(p)
 	return 
 }
 
 func (gmap *GameMap)Rune(c rl.Cell) (r rune){
 	switch c {
-	case Wall:
+	case domain.Wall:
 		r = '#'
-	case Floor:
+	case domain.Floor:
 		r = '.'
 	}
 	return
@@ -69,15 +68,15 @@ func (gmap *GameMap)Generate() {
 	}
 
 	for {
-		mapGen.CellularAutomataCave(Wall, Floor, 0.42, rules)
+		mapGen.CellularAutomataCave(domain.Wall, domain.Floor, 0.42, rules)
 
 		freep := gmap.RandFloor() // random floor cell
 
 		pr := paths.NewPathRange(gmap.Grid.Range())
 		pr.CCMap(&Path{Map: gmap}, freep)
-		ntiles := mapGen.KeepCC(pr, freep, Wall)
+		ntiles := mapGen.KeepCC(pr, freep, domain.Wall)
 
-		if ntiles > minCaveSize { // ensure map size for enemy generation
+		if ntiles > domain.MinCaveSize { // ensure map size for enemy generation
 			break
 		}
 		
@@ -89,7 +88,7 @@ func (gmap *GameMap)RandFloor() gruid.Point{
 
 	for {
 		freep := gruid.Point{X: gmap.rand.Intn(size.X), Y: gmap.rand.Intn(size.Y)}
-		if gmap.Grid.At(freep) == Floor {
+		if gmap.Grid.At(freep) == domain.Floor {
 			return freep
 		}
 	}

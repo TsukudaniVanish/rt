@@ -1,19 +1,17 @@
-package main
+package game
 
 import (
 	"errors"
 	"fmt"
 	"strings"
 
+    "domain"
+
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
 )
 
-const (
-    ErrNoShow = "ErrNoShow"
-    ErrNoTargeting = "error no targeting"
-    HealRate = 50
-)
+
 type Game struct {
 	ECS *ECS
 	Map *GameMap
@@ -25,7 +23,7 @@ func NewGame() (g *Game) {
    g = &Game{}
 
     // init map
-    size := gruid.Point{X:MapWidth, Y:MapHight}
+    size := gruid.Point{X:domain.MapWidth, Y:domain.MapHight}
    g.Map = NewMap(size)
    g.PR = paths.NewPathRange(gruid.NewRange(0, 0, size.X, size.Y))
    g.ECS = NewEcs()
@@ -35,8 +33,8 @@ func NewGame() (g *Game) {
    g.ECS.Statuses[g.ECS.PlayerID] = &Status{
         HP: 30, MaxHP: 30, Power: 5, Defence: 2,
     }
-   g.ECS.Styles[g.ECS.PlayerID] = Style{Rune: '@', Color: colorPlayer}
-   g.ECS.Name[g.ECS.PlayerID] = playerName
+   g.ECS.Styles[g.ECS.PlayerID] = Style{Rune: '@', Color: domain.ColorPlayer}
+   g.ECS.Name[g.ECS.PlayerID] = domain.PlayerName
    g.ECS.Inventories[g.ECS.PlayerID] = &Inventory{}
 
    g.UpdateFOV()
@@ -75,7 +73,7 @@ func (g *Game) EndTurn() {
         case *Enemy:
             g.HandleMonsterTurn(i)
         case *Player:
-            isHeal := g.Map.rand.Intn(100) > HealRate
+            isHeal := g.Map.rand.Intn(100) > domain.HealRate
             if isHeal {
                 g.ECS.Statuses[i].Heal(2)
             }
@@ -88,6 +86,7 @@ func (g *Game)UpdateFOV() {
 	playerPosition := g.ECS.PlayerPosition()
 
 	// new range for fov
+    maxLOS := domain.MaxLOS
 	rangeFOV := gruid.NewRange(-maxLOS, -maxLOS, maxLOS + 1, maxLOS + 1)
 	player.FOV.SetRange(rangeFOV.Add(playerPosition).Intersect(g.Map.Grid.Range()))
 
@@ -107,7 +106,7 @@ func (g *Game)UpdateFOV() {
 
 func (g *Game) InFOV(p gruid.Point) bool {
 	playerPosition := g.ECS.PlayerPosition()
-	return g.ECS.Player().FOV.Visible(p) && paths.DistanceManhattan(playerPosition, p) <= maxLOS
+	return g.ECS.Player().FOV.Visible(p) && paths.DistanceManhattan(playerPosition, p) <= domain.MaxLOS
 }
 
 func (g *Game)SpawnEnemies() {
@@ -134,13 +133,13 @@ func (g *Game)SpawnEnemies() {
                     HP: 10, MaxHP: 10,Power: 3, Defence: 0,
                 }
                 g.ECS.Name[i] = "orc"
-                g.ECS.Styles[i] = Style{Rune: 'o', Color: colorEnemy}
+                g.ECS.Styles[i] = Style{Rune: 'o', Color: domain.ColorEnemy}
             case troll:
                 g.ECS.Statuses[i] = &Status{
                     HP: 16, MaxHP: 16,Power: 5, Defence: 1,
                 }
                 g.ECS.Name[i] = "troll"
-                g.ECS.Styles[i] = Style{Rune: 'T', Color: colorEnemy}
+                g.ECS.Styles[i] = Style{Rune: 'T', Color: domain.ColorEnemy}
 
         }
         g.ECS.AI[i] = &EnemyAI{}
@@ -152,9 +151,9 @@ func (g *Game) BumpAttack(i, j int) {
     sj := g.ECS.Statuses[j]
     damage := si.Power - sj.Defence
     attackDesc := fmt.Sprintf("%s attacks %s", strings.Title(g.ECS.Name[i]), strings.Title(g.ECS.Name[j]))
-    color := colorLogEnemyAttack
+    color := domain.ColorLogEnemyAttack
     if i == g.ECS.PlayerID {
-        color = colorLogPlayerAttack
+        color = domain.ColorLogPlayerAttack
     }
     if damage > 0 {
         g.Logf("%s for %d damage", color, attackDesc, damage)
@@ -175,17 +174,17 @@ func (g *Game)PlaceItems() {
         case r < 0.7: // portion
             name := "portion"
             id := g.ECS.AddEntity(&HealthPotion{Amount: amount, Name: name}, p)
-            g.ECS.Styles[id] = Style{Rune: '!', Color: colorConsumable}
+            g.ECS.Styles[id] = Style{Rune: '!', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         case r < 0.9: // magicArrow
             name := "magic arrow scroll"
             id := g.ECS.AddEntity(&MagicArrowScroll{Damage: 3, Range: 5}, p)
-            g.ECS.Styles[id] = Style{Rune: '?', Color: colorConsumable}
+            g.ECS.Styles[id] = Style{Rune: '?', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         default:
             name := "explode scroll"
             id := g.ECS.AddEntity(&ExplodeScroll{Damage: 100, Radius: 10}, p)
-            g.ECS.Styles[id] = Style{Rune: '?', Color: colorConsumable}
+            g.ECS.Styles[id] = Style{Rune: '?', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         }
     }
@@ -260,7 +259,7 @@ func (g *Game) InventoryAdd(actor, i int) (err error) {
         delete(g.ECS.Positions, i)
         return
    }
-   err = errors.New(ErrNoShow)
+   err = errors.New(domain.ErrNoShow)
    return 
 }
 
@@ -309,7 +308,7 @@ func (g *Game) TargetingRadius (actor int, itemID int) (radius int, err error) {
         radius = e.TargetRadius()
         return
     default:
-        err = errors.New(ErrNoTargeting)
+        err = errors.New(domain.ErrNoTargeting)
         return  
     }
 }

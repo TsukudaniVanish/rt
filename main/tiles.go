@@ -3,6 +3,8 @@ import (
 	"image"
 	"image/color"
 
+	"domain"
+
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/opentype"
 
@@ -47,17 +49,17 @@ func (t *TileDrawer) GetImage(c gruid.Cell) image.Image {
 	fg := image.NewUniform(color.RGBA{0xad, 0xbc, 0xbc, 255})
 	bg := image.NewUniform(color.RGBA{0x18, 0x49, 0x56, 255})
 	switch c.Style.Bg {
-	case colorFOV:
+	case domain.ColorFOV:
 		bg = image.NewUniform(color.RGBA{0x18, 0x49, 0x56, 255})
-	case colorPlayer:
+	case domain.ColorPlayer:
 		fg = image.NewUniform(color.RGBA{0x46, 0x95, 0xf7, 255})
-	case colorEnemy:
+	case domain.ColorEnemy:
 		fg = image.NewUniform(color.RGBA{0xfa, 0x57, 0x50, 255})
-    case colorLogPlayerAttack, colorStatusHealthy:
+    case domain.ColorLogPlayerAttack, domain.ColorStatusHealthy:
         fg = image.NewUniform(color.RGBA{0x75, 0xb9, 0x38, 255})
-    case colorLogEnemyAttack, colorStatusWounded:
+    case domain.ColorLogEnemyAttack, domain.ColorStatusWounded:
         fg = image.NewUniform(color.RGBA{0xed, 0x86, 0x49, 255})
-    case colorLogSpecial:
+    case domain.ColorLogSpecial:
         fg = image.NewUniform(color.RGBA{0xf2, 0x75, 0xbe, 255})
 	}
 	

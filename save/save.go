@@ -1,4 +1,4 @@
-package main
+package save 
 
 import (
 	"bytes"
@@ -9,18 +9,24 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"game"
 )
 
 func init() {
 	// We register Entity types so that gob can encode them.
-	gob.Register(&Player{})
-	gob.Register(&Enemy{})
-	gob.Register(&HealthPotion{})
-	gob.Register(&MagicArrowScroll{})
-	gob.Register(&ExplodeScroll{})
+	RegisterEntity()
 }
 
-func Encode(g *Game) (encodedData []byte, err error) {
+func RegisterEntity() {
+	gob.Register(&game.Player{})
+	gob.Register(&game.Enemy{})
+	gob.Register(&game.HealthPotion{})
+	gob.Register(&game.MagicArrowScroll{})
+	gob.Register(&game.ExplodeScroll{})
+}
+
+func Encode(g *game.Game) (encodedData []byte, err error) {
 	data := bytes.Buffer{}
 	enc := gob.NewEncoder(&data)
 	err = enc.Encode(g)
@@ -38,7 +44,7 @@ func Encode(g *Game) (encodedData []byte, err error) {
 	return 
 }
 
-func EncodeNoGzip(g *Game) (data []byte, err error) {
+func EncodeNoGzip(g *game.Game) (data []byte, err error) {
 	buf := &bytes.Buffer{}
 	enc := gob.NewEncoder(buf)
 	err = enc.Encode(g)
@@ -49,15 +55,15 @@ func EncodeNoGzip(g *Game) (data []byte, err error) {
 	return 
 }
 
-func DecodeNoGzip(data []byte) (g *Game, err error) {
+func DecodeNoGzip(data []byte) (g *game.Game, err error) {
 	dec := gob.NewDecoder(bytes.NewReader(data))
-	g = &Game{}
+	g = &game.Game{}
 	err = dec.Decode(g)
 	return
 }
 
-func Decode(data []byte) (g *Game, err error) {
-	g = &Game{}
+func Decode(data []byte) (g *game.Game, err error) {
+	g = &game.Game{}
 	buf := bytes.NewReader(data)
 	readGzip, err := gzip.NewReader(buf)
 	if err != nil {
