@@ -28,6 +28,7 @@ const (
     ActionSave ActionType = "action save"
 	ActionQuit ActionType = "action quit"
     ActionViewMessage ActionType = "action view message"
+    ActionInput ActionType = "action input"
     ActionExamine ActionType = "action examine a map"
 )
 
@@ -40,6 +41,7 @@ const (
     modeInventoryActivate
     modeInventoryDrop
     modeTargetting 
+    modeInput
     modeExamination // map examination mode 
 )
 
@@ -62,7 +64,9 @@ type Model struct {
     LogLabel *ui.Label
     StatusLabel *ui.Label
     DescLabel *ui.Label // label for description
+    InputLabel *ui.Label
     Viewer *ui.Pager
+    Input string 
     Target Targetting
 }
 
@@ -127,7 +131,8 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
             m.Mode = modeNormal
         }
         return nil
-
+    case modeInput:
+        return m.updateInput(msg)
     case modeInventoryDrop, modeInventoryActivate:
         m.updateInventory(msg)
         return nil
@@ -178,6 +183,8 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
         m.Action = UIAction{Type: ActionExamine}
     case "S":
         m.Action = UIAction{Type: ActionSave}
+    case "I":
+        m.Action = UIAction{Type: ActionInput}
 	}
 
 }
@@ -264,6 +271,24 @@ func (m *Model)updateTargetting(msg gruid.Msg) {
     }
 }
 
+func (m *Model) updateInput(msg gruid.Msg) (eff gruid.Effect) {
+    switch e := msg.(type) {
+    case gruid.MsgKeyDown:
+        switch e.Key{
+        case gruid.KeyBackspace:
+            if len(m.Input) > 0 {
+                m.Input = m.Input[: len(m.Input) -1]
+            }
+        case gruid.KeyEscape, gruid.KeyEnter:
+            m.Mode = modeNormal
+            return 
+        default:
+            m.Input += string(e.Key)
+        }
+    }
+    return 
+}
+
 func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
     rg := m.getUIRange().Intersect(m.getUIRange().Add(m.menuAnchor()))
     m.GameMenu.Update(rg.RelMsg(msg))
@@ -331,6 +356,9 @@ func (m *Model)handleAction() (eff gruid.Effect) {
 		eff = gruid.End()
     case ActionSave:
         m.saveGame()
+    case ActionInput:
+        m.Mode = modeInput
+        return
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", domain.ColorLogSpecial)
@@ -364,6 +392,10 @@ func (m *Model)Draw() (grid gruid.Grid) {
         return 
     case modeInventoryDrop, modeInventoryActivate:
         mapGrid.Copy(m.Inventory.Draw())
+        grid = m.Grid
+        return 
+    case modeInput:
+        mapGrid.Copy(m.DrawInputBox())
         grid = m.Grid
         return 
     }
@@ -497,6 +529,17 @@ func (m *Model)DrawMenu() (grid gruid.Grid) {
     m.Grid.Slice(m.GameMenu.Bounds().Add(m.menuAnchor())).Copy(m.GameMenu.Draw())
     m.MenuInfoLabel.Draw(m.Grid.Slice(m.Grid.Range().Line(12).Shift(10, 0, 0, 0)))
     grid = m.Grid
+    return 
+}
+
+func (m *Model)DrawInputBox() (grid gruid.Grid) {
+    mapGrid := m.Grid.Slice(m.getMapRange().Lines(0, 3))
+    mapGrid.Fill(gruid.Cell{Rune: ' '})
+    m.InputLabel = &ui.Label{
+        Box: &ui.Box{Title: ui.Text("Input")},
+        Content: ui.Text(m.Input),
+    }
+    grid = m.InputLabel.Draw(mapGrid)
     return 
 }
 
