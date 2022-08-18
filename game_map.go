@@ -31,14 +31,14 @@ func (p *Path)Neighbors(q gruid.Point) (nbs []gruid.Point){
 
 type GameMap struct {
 	Grid rl.Grid
-	Rand *rand.Rand
+	rand *rand.Rand
 	Explored map[gruid.Point]bool // explored cells
 }
 
 func NewMap(size gruid.Point) (gmap *GameMap) {
 	gmap = &GameMap{
 		Grid: rl.NewGrid(size.X, size.Y),
-		Rand: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rand: rand.New(rand.NewSource(time.Now().UnixNano())),
 		Explored: make(map[gruid.Point]bool),
 	}
 	gmap.Generate()
@@ -62,7 +62,7 @@ func (gmap *GameMap)Rune(c rl.Cell) (r rune){
 
 // Generate ... fills Grid attribute of gmap with a procedurally generated map
 func (gmap *GameMap)Generate() {
-	mapGen := rl.MapGen{Rand: gmap.Rand, Grid: gmap.Grid}
+	mapGen := rl.MapGen{Rand: gmap.rand, Grid: gmap.Grid}
 	rules := []rl.CellularAutomataRule{
 		{WCutoff1: 5, WCutoff2: 2, WallsOutOfRange: true},
 		{WCutoff1: 5, WCutoff2: 25, WallsOutOfRange: true}, 
@@ -88,7 +88,7 @@ func (gmap *GameMap)RandFloor() gruid.Point{
 	size := gmap.Grid.Size()
 
 	for {
-		freep := gruid.Point{X: gmap.Rand.Intn(size.X), Y: gmap.Rand.Intn(size.Y)}
+		freep := gruid.Point{X: gmap.rand.Intn(size.X), Y: gmap.rand.Intn(size.Y)}
 		if gmap.Grid.At(freep) == Floor {
 			return freep
 		}

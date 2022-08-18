@@ -29,12 +29,17 @@ func Encode(g *Game) (encodedData []byte, err error) {
 	}
 	var buf bytes.Buffer
 	writeGzip := gzip.NewWriter(&buf)
+	defer func () {
+		writeGzip.Close()
+	}()
+
 	writeGzip.Write(data.Bytes())
 	encodedData = buf.Bytes()
 	return 
 }
 
 func Decode(data []byte) (g *Game, err error) {
+	g = &Game{}
 	buf := bytes.NewReader(data)
 	readGzip, err := gzip.NewReader(buf)
 	if err != nil {
@@ -43,7 +48,6 @@ func Decode(data []byte) (g *Game, err error) {
 	defer func ()  {
 		readGzip.Close()
 	}()
-
 
 	dec := gob.NewDecoder(readGzip)
 	err = dec.Decode(g)

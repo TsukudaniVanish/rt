@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"sort"
 	"strings"
@@ -296,14 +297,17 @@ func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
             data, err := LoadFile("save")
             if err != nil {
                 m.MenuInfoLabel.SetText(err.Error())
+                break
             }
+            println("Load data")
 
             g, err := Decode(data)
             if err != nil {
                 m.MenuInfoLabel.SetText(err.Error())
+                break
             }
             m.Game = g 
-            m.Game.Map.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+            m.Game.Map.rand = rand.New(rand.NewSource(time.Now().UnixNano()))
             m.Mode = modeNormal
         case int(MenuQuit):
             eff = gruid.End()
@@ -357,7 +361,29 @@ func (m *Model)handleAction() (eff gruid.Effect) {
     case ActionQuit:
 		eff = gruid.End()
     case ActionSave:
-        // todo
+        println("start save")
+        data, err := Encode(m.Game)
+        if err != nil {
+            m.Game.Logf("could not save game", colorStatusWounded)
+            log.Fatal(err)
+            break
+        }
+
+        log.Print("ECS:")
+        log.Printf("%v", *m.Game.ECS)
+        
+        log.Print("Map:")
+        log.Printf("%v", *m.Game.Map)
+
+        log.Printf("Log:")
+        log.Printf("%v", m.Game.Logs)
+        
+        err = SaveFile("save", data)
+        if err != nil {
+            m.Game.Logf("could not save game", colorStatusWounded)
+            log.Fatal(err)
+            break
+        }
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", colorLogSpecial)
@@ -377,6 +403,9 @@ func (m *Model) InitializeMessageViewer() {
 func (m *Model)Draw() (grid gruid.Grid) {
     mapGrid := m.Grid.Slice(m.getMapRange())
     switch m.Mode {
+    case modeMenu:
+        grid = m.DrawMenu()
+        return 
     case modeMessageViewer:
         m.Grid.Copy(m.Viewer.Draw())
         grid = m.Grid
@@ -509,6 +538,14 @@ func (m *Model) DrawNames(gd gruid.Grid) {
     slice := gd.Slice(rg)
     m.DescLabel.Content = ui.Text(text)
     m.DescLabel.Draw(slice)
+}
+
+func (m *Model)DrawMenu() (grid gruid.Grid) {
+    m.Grid.Fill(gruid.Cell{Rune: ' '})
+    m.Grid.Slice(m.GameMenu.Bounds().Add(m.menuAnchor())).Copy(m.GameMenu.Draw())
+    m.MenuInfoLabel.Draw(m.Grid.Slice(m.Grid.Range().Line(12).Shift(10, 0, 0, 0)))
+    grid = m.Grid
+    return 
 }
 
 func (m *Model) PickUpItem() {

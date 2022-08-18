@@ -28,8 +28,8 @@ func NewEcs() *ECS {
 	return &ECS{
         Entities: map[int]Entity{},
 		Positions: map[int]gruid.Point{},
-		Statuses:  map[int]*Status{-1: nil},
-		AI:        map[int]*EnemyAI{-1: nil},
+		Statuses:  map[int]*Status{},
+		AI:        map[int]*EnemyAI{},
 		Name:      map[int]string{},
         Styles: map[int]Style{},
         Inventories: map[int]*Inventory{},
@@ -41,6 +41,7 @@ func (ecs *ECS) AddEntity(e Entity, p gruid.Point) (id int) {
 	id = ecs.NextID
     ecs.Entities[id] = e 
 	ecs.Positions[id] = p
+	ecs.Statuses[id] = &Status{}
     ecs.NextID++
 	return 
 }

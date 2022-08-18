@@ -18,7 +18,7 @@ type Game struct {
 	ECS *ECS
 	Map *GameMap
     PR *paths.PathRange
-    Logs []*LogEntry
+    Logs []LogEntry
 }
 
 func NewGame() (g *Game) {
@@ -75,7 +75,7 @@ func (g *Game) EndTurn() {
         case *Enemy:
             g.HandleMonsterTurn(i)
         case *Player:
-            isHeal := g.Map.Rand.Intn(100) > HealRate
+            isHeal := g.Map.rand.Intn(100) > HealRate
             if isHeal {
                 g.ECS.Statuses[i].Heal(2)
             }
@@ -122,7 +122,7 @@ func (g *Game)SpawnEnemies() {
 
 		// orc or troll
 		switch {
-		case g.Map.Rand.Intn(100) < 80:
+		case g.Map.rand.Intn(100) < 80:
 		default:
             kind = troll
 		}
@@ -168,7 +168,7 @@ func (g *Game)PlaceItems() {
     const numberOfPortions = 5
     const amount = 100
     for i := 0; i< numberOfPortions; i++{
-        r := g.Map.Rand.Float64()
+        r := g.Map.rand.Float64()
         p := g.FreeFloorTile()
 
         switch {
@@ -234,7 +234,7 @@ func (g *Game) AIMove(i int) {
     }
 }
 
-func (g *Game)log(e *LogEntry) {
+func (g *Game)log(e LogEntry) {
     if len(g.Logs) > 0 {
         if g.Logs[len(g.Logs) -1].Text == e.Text {
             return 
@@ -244,7 +244,7 @@ func (g *Game)log(e *LogEntry) {
 }
 
 func (g *Game)Logf(format string, color gruid.Color, a ...interface{}) {
-    e := &LogEntry{
+    e := LogEntry{
         Text: fmt.Sprintf(format, a ...),
         Color: color,
     }

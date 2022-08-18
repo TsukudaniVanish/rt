@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/paths"
@@ -31,8 +32,8 @@ type HealthPotion struct {
 }
 
 func (p *HealthPotion) Activate(g *Game, a ItemAction) (err error) {
-    si := g.ECS.Statuses[a.Actor]
-    if si == nil {
+    si, ok := g.ECS.Statuses[a.Actor]
+    if !ok {
         err = fmt.Errorf("%s cannot use %s", g.ECS.Name[a.Actor], p.Name)
         return 
     }
@@ -69,8 +70,13 @@ func (ms *MagicArrowScroll) Activate(g *Game, a ItemAction) (err error) {
         err = errors.New("there is no enemy")
         return 
     }
-    g.Logf("a magic lightning strikes %v", colorStatusHealthy, g.ECS.Name[targetID])
-    g.ECS.Statuses[targetID].Damage(ms.Damage)
+    st, ok := g.ECS.Statuses[targetID]
+    if ok {
+        g.Logf("a magic lightning strikes %v", colorStatusHealthy, g.ECS.Name[targetID])
+        st.Damage(ms.Damage)
+    } else {
+        log.Fatalf("could not find status of %d", targetID)
+    }
     return 
 }
 
@@ -92,7 +98,7 @@ func (es *ExplodeScroll) Activate(g *Game, a ItemAction) (err error) {
     hit := 0
     for i, st := range g.ECS.Statuses {
         q := g.ECS.Positions[i]
-        if st == nil || q == g.ECS.PlayerPosition() || g.ECS.Dead(i) {
+        if q == g.ECS.PlayerPosition() || g.ECS.Dead(i) {
             continue
         }
         g.Logf("%v is engulfed in vortex of mana", colorStatusHealthy, g.ECS.GetName(i))
