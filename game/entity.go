@@ -38,7 +38,6 @@ func (ecs *ECS) AddEntity(e Entity, p gruid.Point) (id int) {
 	id = ecs.NextID
     ecs.Entities[id] = e 
 	ecs.Positions[id] = p
-	ecs.Statuses[id] = &Status{}
     ecs.NextID++
 	return 
 }

@@ -277,20 +277,7 @@ func (m *Model) updateMenu(msg gruid.Msg) (eff gruid.Effect){
             m.Game = game.NewGame()
             m.Mode = modeNormal
         case int(MenuContinue):
-            data, err := save.LoadFile("save")
-            if err != nil {
-                m.MenuInfoLabel.SetText(err.Error())
-                break
-            }
-
-            g, err := save.DecodeNoGzip(data)
-            if err != nil {
-                m.MenuInfoLabel.SetText(err.Error())
-                break
-            }
-            m.Game = g 
-            m.Game.Map.SetRand(rand.New(rand.NewSource(time.Now().UnixNano())))
-            m.Mode = modeNormal
+            m.loadGame()
         case int(MenuQuit):
             eff = gruid.End()
             return 
@@ -343,19 +330,7 @@ func (m *Model)handleAction() (eff gruid.Effect) {
     case ActionQuit:
 		eff = gruid.End()
     case ActionSave:
-        data, err := save.EncodeNoGzip(m.Game)
-        if err != nil {
-            m.Game.Logf("could not save game", domain.ColorStatusWounded)
-            log.Fatal(err)
-            break
-        }
-        
-        err = save.SaveFile("save", data)
-        if err != nil {
-            m.Game.Logf("could not save game", domain.ColorStatusWounded)
-            log.Fatal(err)
-            break
-        }
+        m.saveGame()
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", domain.ColorLogSpecial)
@@ -417,7 +392,7 @@ func (m *Model)Draw() (grid gruid.Grid) {
 	// draw entity 
 	for _, i := range sortedEntities{
 		p := g.ECS.Positions[i]
-		if !g.Map.Explored[p] || !g.InFOV(p) {
+        if !g.Map.Explored[p] || !g.InFOV(p) {
 			continue
 		}
 		c := mapGrid.At(p)
@@ -583,4 +558,40 @@ func (m *Model) convertMapPositionToUiPosition (mapPos gruid.Point) gruid.Point 
 func (m *Model) menuAnchor() (p gruid.Point) {
     p = gruid.Point{X: 10, Y:6}
     return
+}
+
+func (m *Model) saveGame() {
+    data, err := save.EncodeNoGzip(m.Game)
+    if err != nil {
+        m.Game.Logf("could not save game", domain.ColorStatusWounded)
+        log.Fatal(err)
+        return
+    }
+    
+    err = save.SaveFile("save", data)
+    if err != nil {
+        m.Game.Logf("could not save game", domain.ColorStatusWounded)
+        log.Fatal(err)
+        return 
+    }
+    m.Game.Logf("game saved successfully!", domain.ColorLogSpecial)
+}
+
+func (m *Model)loadGame() {
+    data, err := save.LoadFile("save")
+    if err != nil {
+        m.MenuInfoLabel.SetText(err.Error())
+        return
+    }
+
+    g, err := save.DecodeNoGzip(data)
+    if err != nil {
+        m.MenuInfoLabel.SetText(err.Error())
+        return
+    }
+    m.Game = g 
+    m.Game.Map.SetRand(rand.New(rand.NewSource(time.Now().UnixNano())))
+    m.Mode = modeNormal
+
+    m.Game.Logf("load game successfully!", domain.ColorLogSpecial)
 }
