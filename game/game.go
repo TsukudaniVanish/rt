@@ -76,7 +76,7 @@ func (g *Game) EndTurn() {
         case *Enemy:
             g.HandleMonsterTurn(i)
         case *Player:
-            isHeal := g.Map.rand.Intn(100) > domain.HealRate
+            isHeal := g.Map.rand.Intn(100) < domain.HealRate
             if isHeal {
                 g.ECS.Statuses[i].Heal(2)
             }

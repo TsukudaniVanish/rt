@@ -42,9 +42,9 @@ const (
 const (
     ErrNoShow = "ErrNoShow"
     ErrNoTargeting = "error no targeting"
-    HealRate = 50
+    HealRate = 0
 )
 
 const (
-    GoalNumber = 1
+    GoalNumber = 12
 )
