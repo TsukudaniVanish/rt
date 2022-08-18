@@ -44,3 +44,7 @@ const (
     ErrNoTargeting = "error no targeting"
     HealRate = 50
 )
+
+const (
+    GoalNumber = 1
+)

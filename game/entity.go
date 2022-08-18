@@ -13,6 +13,7 @@ type ECS struct {
 	Positions map[int]gruid.Point // key: index of entity value: position of entity in map
 	PlayerID  int                 // index of player
     NextID int 
+	Bodies int 
 
 	Statuses map[int]*Status
 	AI       map[int]*EnemyAI
@@ -126,6 +127,10 @@ func (ecs *ECS) GetName(i int) (name string) {
         name = "corpse"
     }
     return 
+}
+
+func (ecs *ECS) GameClear() bool {
+	return ecs.Bodies >= domain.GoalNumber
 }
 
 // RenderOrder ... Priority of rendering

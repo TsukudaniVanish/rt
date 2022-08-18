@@ -337,6 +337,11 @@ func (m *Model)handleAction() (eff gruid.Effect) {
         m.Mode = modeEnd
         return nil 
     }
+    if m.Game.ECS.GameClear() {
+        m.Game.Logf("You cleared the game!", domain.ColorLogSpecial)
+        m.Mode = modeEnd
+        return nil 
+    }
 	return
 }
 

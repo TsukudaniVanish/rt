@@ -55,6 +55,9 @@ func (g *Game)Bump (to gruid.Point) {
 
 	if i,enemy := g.ECS.EnemyAt(to); enemy != nil {
         g.BumpAttack(g.ECS.PlayerID, i)
+        if g.ECS.Dead(i) {
+            g.ECS.Bodies ++
+        }
         g.EndTurn()
 		return
 	}
