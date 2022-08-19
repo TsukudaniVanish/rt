@@ -1,0 +1,4 @@
+<S-Expr> ::=  <pair> | <atom>
+<pair> ::= <(> <atom> <atoms> <)>
+<atoms> ::= <atom> | <atom> <atoms>
+<atom> ::= <literal> | <symbol> | <keyword>

@@ -3,6 +3,7 @@ package domain
 import (
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/rl"
+    
 )
 
 const AttrReverse = 1 << iota 
@@ -46,5 +47,5 @@ const (
 )
 
 const (
-    GoalNumber = 12
+    EnemyNumber = 12
 )
