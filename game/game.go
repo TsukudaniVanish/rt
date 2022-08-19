@@ -57,9 +57,6 @@ func (g *Game)Bump (to gruid.Point) {
 	if i,enemy := g.ECS.EnemyAt(to); enemy != nil {
         // attack to enemy 
         g.BumpAttack(g.ECS.PlayerID, i)
-        if g.ECS.Dead(i) {
-            g.ECS.Bodies ++
-        }
         g.EndTurn()
 		return
 	}
@@ -70,7 +67,11 @@ func (g *Game)Bump (to gruid.Point) {
 
 func (g *Game) EndTurn() {
     g.UpdateFOV()
+    bodies := 0
     for i, e := range g.ECS.Entities{
+        if g.ECS.Dead(i) {
+            bodies++
+        }
         if g.ECS.PlayerDead(){
             return
         }
@@ -84,6 +85,7 @@ func (g *Game) EndTurn() {
             }
         }
     }
+    g.ECS.Bodies = bodies
 }
 
 func (g *Game)UpdateFOV() {
@@ -151,10 +153,11 @@ func (g *Game)SpawnEnemies() {
 	}
 }
 
+// BumpAttack ... i attacks to j 
 func (g *Game) BumpAttack(i, j int) {
     si := g.ECS.Statuses[i]
     sj := g.ECS.Statuses[j]
-    damage := si.Power - sj.Defence
+    damage := sj.Damage(si.Power)
     attackDesc := fmt.Sprintf("%s attacks %s", strings.Title(g.ECS.Name[i]), strings.Title(g.ECS.Name[j]))
     color := domain.ColorLogEnemyAttack
     if i == g.ECS.PlayerID {
@@ -162,33 +165,31 @@ func (g *Game) BumpAttack(i, j int) {
     }
     if damage > 0 {
         g.Logf("%s for %d damage", color, attackDesc, damage)
-        sj.Damage(damage)
     } else {
         g.Logf("%s\nbut does no damage", color, attackDesc)
     }
 }
 
 func (g *Game)PlaceItems() {
-    const numberOfPortions = 5
-    const amount = 100
-    for i := 0; i< numberOfPortions; i++{
+    numberOfItems := domain.ItemNumber
+    for i := 0; i< numberOfItems; i++{
         r := g.Map.rand.Float64()
         p := g.FreeFloorTile()
 
         switch {
         case r < 0.7: // portion
             name := "portion"
-            id := g.ECS.AddEntity(&HealthPotion{Amount: amount, Name: name}, p)
+            id := g.ECS.AddEntity(&HealthPotion{Amount: domain.AmountOfHealthPortion, Name: name}, p)
             g.ECS.Styles[id] = Style{Rune: '!', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         case r < 0.9: // magicArrow
             name := "magic arrow scroll"
-            id := g.ECS.AddEntity(&MagicArrowScroll{Damage: 3, Range: 5}, p)
+            id := g.ECS.AddEntity(&MagicArrowScroll{Damage: domain.DamageMagicArrowScroll, Range: 5}, p)
             g.ECS.Styles[id] = Style{Rune: '?', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         default:
             name := "explode scroll"
-            id := g.ECS.AddEntity(&ExplodeScroll{Damage: 100, Radius: 10}, p)
+            id := g.ECS.AddEntity(&ExplodeScroll{Damage: domain.DamageExplodeScroll, Radius: 10}, p)
             g.ECS.Styles[id] = Style{Rune: '?', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
         }
@@ -332,14 +333,11 @@ func (g *Game) CastMagic(magic domain.Magic) {
     for i, p := range g.ECS.Positions {
         if g.ECS.Alive(i) && paths.DistanceManhattan(p, target) <= magic.Radius {
             st := g.ECS.Statuses[i]
-            damage := magic.Amount - st.Defence
+            damage := magic.Amount
             st.Damage(damage)
             name , ok := g.ECS.Name[i]
             if ok {
                 g.Logf("%s got flow of mana: %d damages", domain.ColorLogSpecial,name, damage)
-            }
-            if g.ECS.Dead(i) {
-                g.ECS.Bodies++
             }
         }
     }

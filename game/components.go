@@ -24,12 +24,13 @@ func (st *Status) Heal(n int) (healedHP int) {
 }
 
 func (st *Status)Damage(n int) (damagedHP int) {
-    st.HP -= n 
+    damage := n - st.Defence
+    st.HP -= damage 
     if st.HP < 0 {
-        n += st.HP
+        damage += st.HP
         st.HP = 0
     }
-    damagedHP = n 
+    damagedHP = damage 
     return 
 }
 

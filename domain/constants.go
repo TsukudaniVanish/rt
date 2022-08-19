@@ -48,4 +48,8 @@ const (
 
 const (
     EnemyNumber = 12
+    ItemNumber = 10
+    AmountOfHealthPortion = 100
+    DamageMagicArrowScroll = 5
+    DamageExplodeScroll = 10
 )
