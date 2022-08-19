@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
 	"sort"
@@ -137,9 +136,7 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
         m.updateInventory(msg)
         return nil
     case modeTargetting, modeExamination:
-        println("update targetting!")
         m.updateTargetting(msg)
-        println(fmt.Sprintf("%v", m.Target.Position))
         return nil
     default: // modeNormal
         switch msg := msg.(type) {
@@ -256,6 +253,9 @@ func (m *Model)updateTargetting(msg gruid.Msg) {
             m.Mode = modeNormal
             return
         }
+        // logging 
+        pp := m.Game.ECS.PlayerPosition()
+        m.Game.Logf("You examined a place at (%d, %d) from your place", domain.ColorLogSpecial, p.X - pp.X, p.Y - pp.Y)
         m.Target.Position = m.convertMapPositionToUiPosition(p)
     case gruid.MsgMouse:
         switch msg.Action{
@@ -479,7 +479,7 @@ func (m *Model) DrawStatus(gd gruid.Grid) {
     if statusPlayer.HP < statusPlayer.MaxHP / 2 {
         st.Fg = domain.ColorStatusWounded
     }
-    m.StatusLabel.Content = ui.Textf("HP: %d/%d", statusPlayer.HP, statusPlayer.MaxHP)
+    m.StatusLabel.Content = ui.Textf("HP: %d/%d  Killed Enemy:%d/%d", statusPlayer.HP, statusPlayer.MaxHP, g.ECS.Bodies, domain.EnemyNumber)
     m.StatusLabel.Box = &ui.Box{Title: ui.Text("Status")}
     m.StatusLabel.Draw(gd)
 }

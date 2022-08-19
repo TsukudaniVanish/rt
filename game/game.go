@@ -17,6 +17,7 @@ type Game struct {
 	Map *GameMap
     PR *paths.PathRange
     Logs []LogEntry
+    castedMagics []*domain.Magic 
 }
 
 func NewGame() (g *Game) {
@@ -54,6 +55,7 @@ func (g *Game)Bump (to gruid.Point) {
 	}
 
 	if i,enemy := g.ECS.EnemyAt(to); enemy != nil {
+        // attack to enemy 
         g.BumpAttack(g.ECS.PlayerID, i)
         if g.ECS.Dead(i) {
             g.ECS.Bodies ++
@@ -113,7 +115,7 @@ func (g *Game) InFOV(p gruid.Point) bool {
 }
 
 func (g *Game)SpawnEnemies() {
-	const numberOfEnemies = 12
+	const numberOfEnemies = domain.EnemyNumber
 	for i := 0; i < numberOfEnemies; i++{
 		m := &Enemy{}
         const (
@@ -160,7 +162,7 @@ func (g *Game) BumpAttack(i, j int) {
     }
     if damage > 0 {
         g.Logf("%s for %d damage", color, attackDesc, damage)
-        sj.HP -= damage
+        sj.Damage(damage)
     } else {
         g.Logf("%s\nbut does no damage", color, attackDesc)
     }
@@ -314,4 +316,8 @@ func (g *Game) TargetingRadius (actor int, itemID int) (radius int, err error) {
         err = errors.New(domain.ErrNoTargeting)
         return  
     }
+}
+
+func (g *Game) CastMagic() {
+    return 
 }

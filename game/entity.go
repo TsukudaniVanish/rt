@@ -130,7 +130,7 @@ func (ecs *ECS) GetName(i int) (name string) {
 }
 
 func (ecs *ECS) GameClear() bool {
-	return ecs.Bodies >= domain.GoalNumber
+	return ecs.Bodies >= domain.EnemyNumber
 }
 
 // RenderOrder ... Priority of rendering

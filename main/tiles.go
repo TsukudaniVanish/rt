@@ -51,6 +51,8 @@ func (t *TileDrawer) GetImage(c gruid.Cell) image.Image {
 	switch c.Style.Bg {
 	case domain.ColorFOV:
 		bg = image.NewUniform(color.RGBA{0x18, 0x49, 0x56, 255})
+	}
+	switch c.Style.Fg {
 	case domain.ColorPlayer:
 		fg = image.NewUniform(color.RGBA{0x46, 0x95, 0xf7, 255})
 	case domain.ColorEnemy:
