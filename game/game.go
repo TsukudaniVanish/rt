@@ -177,12 +177,12 @@ func (g *Game)PlaceItems() {
         p := g.FreeFloorTile()
 
         switch {
-        case r < 0.7: // portion
+        case r < 0.7: 
             name := "portion"
             id := g.ECS.AddEntity(&HealthPotion{Amount: domain.AmountOfHealthPortion, Name: name}, p)
             g.ECS.Styles[id] = Style{Rune: '!', Color: domain.ColorConsumable}
             g.ECS.Name[id] = name
-        case r < 0.9: // magicArrow
+        case r < 0.9:
             name := "magic arrow scroll"
             id := g.ECS.AddEntity(&MagicArrowScroll{Damage: domain.DamageMagicArrowScroll, Range: 5}, p)
             g.ECS.Styles[id] = Style{Rune: '?', Color: domain.ColorConsumable}
