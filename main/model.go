@@ -29,6 +29,7 @@ const (
     ActionViewMessage ActionType = "action view message"
     ActionInput ActionType = "action input"
     ActionExamine ActionType = "action examine a map"
+    ActionCastMagic ActionType = "action cast magic"
 )
 
 type UIMode int 
@@ -182,6 +183,8 @@ func (m *Model)updateMsgKeyDown(msg gruid.MsgKeyDown) {
         m.Action = UIAction{Type: ActionSave}
     case "I":
         m.Action = UIAction{Type: ActionInput}
+    case "M":
+        m.Action = UIAction{Type: ActionCastMagic}
 	}
 
 }
@@ -359,6 +362,12 @@ func (m *Model)handleAction() (eff gruid.Effect) {
     case ActionInput:
         m.Mode = modeInput
         return
+    case ActionCastMagic:
+        magic := domain.MagicArrow
+        magic.Actor = m.Game.ECS.PlayerID
+        magic.Target = gruid.Point{X: -1 , Y: 0}
+        m.Game.CastMagic(magic)
+        m.Game.EndTurn()
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", domain.ColorLogSpecial)

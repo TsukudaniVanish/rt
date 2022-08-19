@@ -318,6 +318,29 @@ func (g *Game) TargetingRadius (actor int, itemID int) (radius int, err error) {
     }
 }
 
-func (g *Game) CastMagic() {
-    return 
+func (g *Game) CastMagic(magic domain.Magic) {
+    color := domain.ColorLogEnemyAttack
+    if magic.Actor == g.ECS.PlayerID {
+        color = domain.ColorLogPlayerAttack
+    }
+    actorName, ok := g.ECS.Name[magic.Actor]
+    if ok {
+        g.Logf("%s cast %s", color, actorName, magic.Name)
+    }
+    actorPosition := g.ECS.Positions[magic.Actor]
+    target := actorPosition.Add(magic.Target)
+    for i, p := range g.ECS.Positions {
+        if g.ECS.Alive(i) && paths.DistanceManhattan(p, target) <= magic.Radius {
+            st := g.ECS.Statuses[i]
+            damage := magic.Amount - st.Defence
+            st.Damage(damage)
+            name , ok := g.ECS.Name[i]
+            if ok {
+                g.Logf("%s got flow of mana: %d damages", domain.ColorLogSpecial,name, damage)
+            }
+            if g.ECS.Dead(i) {
+                g.ECS.Bodies++
+            }
+        }
+    }
 }
