@@ -30,8 +30,12 @@ type LexicalObject struct {
 
 type NodeType int 
 const (
-	Atom NodeType = iota 
-	Pair
+	Root NodeType = iota
+	Operator 
+	Literal
+	ArrayHead
+	ArrayItem
+	ArrayTail
 )
 
 type DataLabel int 
@@ -39,17 +43,16 @@ const (
 	Null DataLabel = iota 
 	Number 
 	String 
-	List 
 	OperatorGandr
 	OperatorSeiethr
 )
 
 type NodeData struct {
 	Label DataLabel 
-	Number int 
+	// Text ... this field have meaning when label is string or Null
 	Text string
-	// this field have meaning when Label is List  
-	Length int 
+	// Number ... this field have meaning when label is number 
+	Number int64
 }
 
 type Node struct {
