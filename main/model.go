@@ -11,6 +11,7 @@ import (
     "game"
     "domain"
     "save"
+    "compiler"
 
 	"github.com/anaseto/gruid"
 	"github.com/anaseto/gruid/ui"
@@ -42,6 +43,7 @@ const (
     modeInventoryDrop
     modeTargetting 
     modeInput
+    modeCastMagic
     modeExamination // map examination mode 
 )
 
@@ -67,7 +69,7 @@ type Model struct {
     InputLabel *ui.Label
     Viewer *ui.Pager
     Input string 
-    Target Targetting
+    Target Targetting // for Item of targetting 
 }
 
 type Targetting struct {
@@ -133,6 +135,8 @@ func (m *Model)Update(msg gruid.Msg) (eff gruid.Effect){
         return nil
     case modeInput:
         return m.updateInput(msg)
+    case modeCastMagic:
+        return m.updateCastMagic(msg)
     case modeInventoryDrop, modeInventoryActivate:
         m.updateInventory(msg)
         return nil
@@ -274,6 +278,33 @@ func (m *Model)updateTargetting(msg gruid.Msg) {
     }
 }
 
+func (m *Model) updateCastMagic(msg gruid.Msg) (eff gruid.Effect) {
+    switch e := msg.(type) {
+    case gruid.MsgKeyDown:
+        switch e.Key{
+        case gruid.KeyEscape:
+            m.Mode = modeNormal
+            return 
+        case gruid.KeyEnter:
+            magic, err := compiler.Compile(m.Input)
+            if err != nil {
+                m.Game.Logf("%v", domain.ColorStatusWounded, err)
+                m.Input = ""
+                return 
+            }
+            magic.Actor = m.Game.ECS.PlayerID
+            m.Game.CastMagic(magic)
+            m.Game.EndTurn()
+            m.Mode = modeNormal
+            return 
+        default:
+            eff = m.updateInput(msg)
+            return 
+        }
+    }
+    return 
+}
+
 func (m *Model) updateInput(msg gruid.Msg) (eff gruid.Effect) {
     switch e := msg.(type) {
     case gruid.MsgKeyDown:
@@ -363,11 +394,8 @@ func (m *Model)handleAction() (eff gruid.Effect) {
         m.Mode = modeInput
         return
     case ActionCastMagic:
-        magic := domain.MagicArrow
-        magic.Actor = m.Game.ECS.PlayerID
-        magic.Target = gruid.Point{X: -1 , Y: 0}
-        m.Game.CastMagic(magic)
-        m.Game.EndTurn()
+        m.Mode = modeCastMagic
+        return 
 	}
     if m.Game.ECS.PlayerDead() {
         m.Game.Logf("You Died -- press Escape to quit", domain.ColorLogSpecial)
@@ -403,7 +431,7 @@ func (m *Model)Draw() (grid gruid.Grid) {
         mapGrid.Copy(m.Inventory.Draw())
         grid = m.Grid
         return 
-    case modeInput:
+    case modeInput, modeCastMagic:
         mapGrid.Copy(m.DrawInputBox())
         grid = m.Grid
         return 
@@ -546,7 +574,7 @@ func (m *Model)DrawInputBox() (grid gruid.Grid) {
     mapGrid.Fill(gruid.Cell{Rune: ' '})
     m.InputLabel = &ui.Label{
         Box: &ui.Box{Title: ui.Text("Input")},
-        Content: ui.Text(m.Input),
+        Content: ui.Text(m.Input + "<"),
     }
     grid = m.InputLabel.Draw(mapGrid)
     return 
