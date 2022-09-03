@@ -1,5 +1,5 @@
 # rt
-Rouguelike Tutorial in go
+Rouguelike Game in go
 
 goal of this game is to kill all enemies in map. 
 
