@@ -1,11 +1,10 @@
-package save 
+package save
 
 import (
 	"bytes"
 	"compress/gzip"
 	"encoding/gob"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,17 +30,22 @@ func Encode(g *game.Game) (encodedData []byte, err error) {
 	enc := gob.NewEncoder(&data)
 	err = enc.Encode(g)
 	if err != nil {
-		return 
+		return
 	}
 	var buf bytes.Buffer
 	writeGzip := gzip.NewWriter(&buf)
-	defer func () {
-		writeGzip.Close()
+	defer func() {
+		err := writeGzip.Close()
+		if err != nil {
+			fmt.Printf("failed to close a gzip writer: %v", err)
+		}
 	}()
 
-	writeGzip.Write(data.Bytes())
+	if _, err = writeGzip.Write(data.Bytes()); err != nil {
+		return
+	}
 	encodedData = buf.Bytes()
-	return 
+	return
 }
 
 func EncodeNoGzip(g *game.Game) (data []byte, err error) {
@@ -49,10 +53,10 @@ func EncodeNoGzip(g *game.Game) (data []byte, err error) {
 	enc := gob.NewEncoder(buf)
 	err = enc.Encode(g)
 	if err != nil {
-		return 
+		return
 	}
 	data = buf.Bytes()
-	return 
+	return
 }
 
 func DecodeNoGzip(data []byte) (g *game.Game, err error) {
@@ -69,18 +73,21 @@ func Decode(data []byte) (g *game.Game, err error) {
 	if err != nil {
 		return
 	}
-	defer func ()  {
-		readGzip.Close()
+	defer func() {
+		err := readGzip.Close()
+		if err != nil {
+			fmt.Printf("error to close a gzip reader: %v", err)
+		}
 	}()
 
 	dec := gob.NewDecoder(readGzip)
 	err = dec.Decode(g)
-	return 
+	return
 }
 
-// DataDir ... returns path to directory contains data file if there is not, make directory 
-func DataDir () (path string, err error) {
-	var xdg string 
+// DataDir ... returns path to directory contains data file if there is not, make directory
+func DataDir() (path string, err error) {
+	var xdg string
 	if runtime.GOOS == "windows" {
 		xdg = os.Getenv("LOCALAPPDATA")
 	} else { // linux, BSD, etc..
@@ -96,11 +103,11 @@ func DataDir () (path string, err error) {
 	if err != nil {
 		err = os.MkdirAll(path, 0755)
 		if err != nil {
-			err = fmt.Errorf("building data directory: %s\n", err.Error())
+			err = fmt.Errorf("building data directory: %w", err)
 			return
 		}
 	}
-	return 
+	return
 }
 
 func SaveFile(fileName string, data []byte) (err error) {
@@ -108,44 +115,44 @@ func SaveFile(fileName string, data []byte) (err error) {
 	if err != nil {
 		return
 	}
-	tempFileName := filepath.Join(dataDir, "temp-" + fileName)
-	tempFile, err := os.OpenFile(tempFileName, os.O_WRONLY | os.O_CREATE |os.O_TRUNC, 0644)
+	tempFileName := filepath.Join(dataDir, "temp-"+fileName)
+	tempFile, err := os.OpenFile(tempFileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		return 
+		return
 	}
 	_, err = tempFile.Write(data)
 	if err != nil {
-		return 
+		return
 	}
 
-	// closing tempFile for renaming 
+	// closing tempFile for renaming
 	if err = tempFile.Sync(); err != nil {
-		return 
+		return
 	}
 	if err = tempFile.Close(); err != nil {
-		return 
+		return
 	}
 
 	savedFileName := filepath.Join(dataDir, fileName)
 	if err = os.Rename(tempFileName, savedFileName); err != nil {
-		return 
+		return
 	}
 	return
-} 
+}
 
 func LoadFile(fileName string) (data []byte, err error) {
 	dataDir, err := DataDir()
 	if err != nil {
 		err = fmt.Errorf("could not read data directory: %s", err.Error())
-		return 
+		return
 	}
 	filePath := filepath.Join(dataDir, fileName)
 	if _, err = os.Stat(filePath); err != nil {
 		err = fmt.Errorf("no such file: %s", err.Error())
-		return 
+		return
 	}
-	data, err = ioutil.ReadFile(filePath)
-	return 
+	data, err = os.ReadFile(filePath)
+	return
 
 }
 
@@ -153,13 +160,13 @@ func RemoveDataFile(fileName string) (err error) {
 	dataDir, err := DataDir()
 	if err != nil {
 		err = fmt.Errorf("could not read data directory: %s", err.Error())
-		return 
+		return
 	}
 
 	filePath := filepath.Join(dataDir, fileName)
 	if _, err = os.Stat(filePath); err != nil {
 		err = fmt.Errorf("no such file: %s", err.Error())
-		return 
+		return
 	}
 	err = os.Remove(filePath)
 	return
