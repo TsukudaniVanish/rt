@@ -1,0 +1,19 @@
+version: "3"
+
+tasks:
+  install-check:golangci-lint:
+    cmds: 
+      - if ! command -v golangci-lint; then echo "Please install golangci-lint" && exit 1; fi && golangci-lint --version
+    desc: Check a golangci-lint exits.
+  lint:
+    deps:
+      - install-check:golangci-lint
+    desc: Lint all packages by golangci-lint 
+    cmds:
+      - golangci-lint run ./main/... ./domain/... ./game/... ./save/...
+  lint:fix:
+    deps:
+      - install-check:golangci-lint
+    desc: Lint all packages by golangci-lint with --fix option
+    cmds:
+      - golangci-lint run --fix ./main/... ./domain/... ./game/... ./save/...
